@@ -39,13 +39,14 @@ h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
 .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 #footprint { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 #footprint button { text-align: left; }
-#footprint .label { padding-right: 24px; }
+#footprint .label { padding-right: 52px; }
 .item { position: relative; display: grid; }
 .item .tile { display: flex; flex-direction: column; justify-content: flex-start; }
-#footprint .info { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; padding: 6px; border: 0; border-radius: 50%; background: none; color: var(--muted); }
-#footprint .info:hover { color: var(--ink); background: var(--wash); }
-#footprint [aria-pressed="true"] + .info { color: var(--page); }
-.info svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+#footprint :is(.info, .play) { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; padding: 6px; border: 0; border-radius: 50%; background: none; color: var(--muted); }
+#footprint .play { right: 32px; }
+#footprint :is(.info, .play):hover { color: var(--ink); background: var(--wash); }
+#footprint [aria-pressed="true"] ~ :is(.info, .play) { color: var(--page); }
+:is(.info, .play) svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .tile .label { color: var(--ink-2); font-size: 13px; }
 .tile .value { font-size: 28px; font-weight: 600; line-height: 1.25; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -85,6 +86,10 @@ tr.sum td { font-weight: 600; }
 .note { color: var(--ink-2); font-size: 12px; margin-top: 8px; }
 .tile .note { margin-top: 0; }
 .tile[aria-pressed="true"] :is(.label, .note) { color: inherit; }
+#install { width: 100vw; height: 100vh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: #000; outline: none; overflow: hidden; }
+#install[open] { display: grid; place-items: center; }
+#install canvas { width: min(100vw, 133.33vh); aspect-ratio: 4 / 3; image-rendering: pixelated; }
+#install::after { content: ""; position: fixed; inset: 0; background: repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,.22) 2px 4px); }
 </style>
 </head>
 <body>
@@ -105,6 +110,9 @@ tr.sum td { font-weight: 600; }
   <div class="card"><h2>Repos</h2><div id="repos"></div></div>
 </main>
 <div id="tip"></div>
+<script>
+/*INSTALL*/
+</script>
 <script>
 "use strict";
 const DATA = /*DATA*/null;
@@ -434,12 +442,18 @@ function infoButton(label, [formula, note]) {
   hover(button, () => tipRows(label, [[formula, ""]], note), `${label}: ${formula}. ${note}`);
   return button;
 }
+function playButton(key, label, values, units) {
+  const icon = svg("svg", { viewBox: "0 0 16 16", "aria-hidden": "true" });
+  icon.append(svg("path", { d: "M4.75 2.75v10.5l8.5-5.25z" }));
+  return el("button", { class: "play", "data-play": key, "aria-label": `Play ${label}`, onclick: () => installer.play({ key, label, values, format: v => quantity(v, units) }) }, icon);
+}
 function renderFootprint(rows) {
   const cost = span(total(rows), COST), [low, mid, high] = [0, 1, 2].map(s => footprintOf(cost, s)), held = document.activeElement?.dataset.metric;
   $("footprint").replaceChildren(...METRICS.map(({ key, label, units, how }) => el("div", { class: "item" }, el("button", { class: "tile", "data-metric": key, "aria-pressed": state.unit === key, onclick: () => unit(state.unit === key ? "cost" : key) },
     el("div", { class: "label" }, label),
     el("div", { class: "value" }, quantity(mid[key], units)),
-    el("div", { class: "note" }, `${quantity(low[key], units)} to ${quantity(high[key], units)}`)), infoButton(label, how))));
+    el("div", { class: "note" }, `${quantity(low[key], units)} to ${quantity(high[key], units)}`)),
+    playButton(key, label, [low[key], mid[key], high[key]], units), infoButton(label, how))));
   if (held) document.querySelector(`#footprint [data-metric="${held}"]`).focus({ preventScroll: true });
 }
 function renderDetail() {

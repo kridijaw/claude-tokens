@@ -21,7 +21,7 @@ PROJECTS = HOME / ".claude/projects"
 LEDGER = HOME / "Library/Application Support/claude-tokens/ledger.db"
 CONFIG_FILE = HOME / ".config/claude-tokens/config.json"
 REPORT = LEDGER.parent / "report.html"
-TEMPLATE = Path(__file__).resolve().parent.parent / "web/report.html"
+WEB = Path(__file__).resolve().parent.parent / "web"
 COLUMNS = ["Input", "Cache write", "Cache read", "Output", "Total"]
 
 TYPES = ["Input", "Cache write 5m", "Cache write 1h", "Cache read", "Thinking", "Response", "Output (not split)"]
@@ -348,7 +348,8 @@ def write_report(db):
         ],
     }
     encoded = json.dumps(data, separators=(",", ":")).replace("<", "\\u003c")
-    REPORT.write_text(TEMPLATE.read_text().replace("/*DATA*/null", encoded))
+    page = (WEB / "report.html").read_text().replace("/*INSTALL*/", (WEB / "install.js").read_text())
+    REPORT.write_text(page.replace("/*DATA*/null", encoded))
     subprocess.run(["open", REPORT], check=True)
 
 
