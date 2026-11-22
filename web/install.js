@@ -4,6 +4,7 @@ const installer = (() => {
   const VIEW = { x: 6, y: 16, w: 212, h: 134 };
   const CUES = { boot: 0, link: 1.2, transfer: 3.2, overload: 6.3, collapse: 7.7, done: 8.2 };
   const PHASES = Object.keys(CUES);
+  const SPAN = CUES.done - CUES.link;
   const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
   const TAU = Math.PI * 2;
   const MASS = { g: "grams", kg: "kilograms", t: "tonnes" };
@@ -766,27 +767,27 @@ const installer = (() => {
     return a;
   }
 
-  function score(ctx, scene, start, still) {
-    const a = synth(ctx), T = Object.fromEntries(PHASES.map(p => [p, start + CUES[p]]));
-    if (still) T.done = start;
-    else {
+  function score(a, scene, start, first) {
+    const T = Object.fromEntries(PHASES.map(p => [p, start + CUES[p]]));
+    if (first) {
       a.hit(T.boot, 300, 0.12, 0.8);
       for (let i = 0; i < 9; i++) a.blip(T.boot + 0.2 + i * 0.09, i % 3 ? 880 : 1320, 0.03, 0.06);
-      a.hit(T.link, 500, 0.08, 0.5);
-      a.hit(T.transfer, 500, 0.08, 0.5);
-      for (let t = T.transfer; t < T.collapse;) {
-        const p = clamp((t - T.transfer) / (T.overload - T.transfer));
-        a.blip(t, 1100 + p * 900, 0.014, 0.07);
-        t += 0.15 - p * 0.118;
-      }
-      for (let t = T.overload, i = 0; t < T.collapse; t += 0.25, i++) a.blip(t, i % 2 ? 415 : 587, 0.24, 0.13);
-      scene.score(a, T);
-      a.cut(T.collapse);
-      a.hit(T.collapse, 200, 0.25, 0.9);
+    } else T.boot = T.link - 0.4;
+    a.hit(T.link, 500, 0.08, 0.5);
+    a.hit(T.transfer, 500, 0.08, 0.5);
+    for (let t = T.transfer; t < T.collapse;) {
+      const p = clamp((t - T.transfer) / (T.overload - T.transfer));
+      a.blip(t, 1100 + p * 900, 0.014, 0.07);
+      t += 0.15 - p * 0.118;
     }
-    a.hit(T.done, 250, 0.15, 0.6);
-    [196, 293.66, 440].forEach((f, i) => a.blip(T.done + 0.08 + i * 0.13, f, 1.6 - i * 0.13, 0.16, "triangle"));
-    return a;
+    for (let t = T.overload, i = 0; t < T.collapse; t += 0.25, i++) a.blip(t, i % 2 ? 415 : 587, 0.24, 0.13);
+    scene.score(a, T);
+    a.cut(T.collapse);
+    a.hit(T.collapse, 200, 0.25, 0.9);
+  }
+  function finale(a, t) {
+    a.hit(t, 250, 0.15, 0.6);
+    [196, 293.66, 440].forEach((f, i) => a.blip(t + 0.08 + i * 0.13, f, 1.6 - i * 0.13, 0.16, "triangle"));
   }
 
   // Remote voices send the text to a server, so only local ones are used.
@@ -815,8 +816,20 @@ const installer = (() => {
   }
   speechSynthesis.getVoices();
 
-  function frame(g, scene, job, t) {
-    const s = { t };
+  function summary(g, jobs, done) {
+    g.center(10, "INSTALLATION COMPLETE", 1 + Math.round(done * 6), 2);
+    jobs.slice(0, Math.floor(done * jobs.length)).forEach((job, i) => {
+      const y = 42 + i * 17, amounts = job.values.map(job.format), [low, mid, high] = amounts;
+      const [[from, unit], , [to]] = amounts.map(v => v.split(" "));
+      const range = amounts.every(v => v.endsWith(` ${unit}`)) ? `${from} TO ${to}` : `${low} TO ${high}`;
+      g.text(8, y, job.label.toUpperCase(), 6);
+      g.text(112, y, mid.replace(` ${job.label.toLowerCase()}`, ""), WHITE);
+      g.text(W - 7 - range.length * 6, y, range, 7);
+    });
+  }
+
+  function frame(g, jobs, at, t) {
+    const job = jobs[at], scene = scenes[job.key], s = { t };
     PHASES.forEach((p, i) => { s[p] = i < PHASES.length - 1 ? clamp((t - CUES[p]) / (CUES[PHASES[i + 1]] - CUES[p])) : clamp((t - CUES[p]) / 0.5); });
     const phase = PHASES.findLast(p => t >= CUES[p]), since = t - CUES[phase], done = phase === "done";
     const [low, mid, high] = job.values.map(job.format);
@@ -828,11 +841,7 @@ const installer = (() => {
     g.unclip();
     if (done) {
       g.dim();
-      const c = 1 + Math.round(s.done * 6);
-      g.center(52, "INSTALLATION COMPLETE", c, 2);
-      g.center(84, job.label.toUpperCase(), Math.max(1, c - 2));
-      g.center(100, mid, s.done > 0.6 ? WHITE : c, mid.length > 12 ? 2 : 4);
-      g.center(140, `${low} TO ${high}`, c);
+      summary(g, jobs, s.done);
       return s;
     }
     const grit = rng(Math.floor(t * 20));
@@ -865,32 +874,50 @@ const installer = (() => {
     for (let i = 0; i < cells; i++) g.rect(8 + i * 4, 189, 3, 5, i >= 53 ? RED : 6);
     if (s.overload) g.tear(s.overload, t);
     if (s.collapse) g.collapse(s.collapse);
+    else if (at && phase === "link" && since < 0.25) g.collapse(1 - since / 0.25);
     return s;
   }
 
-  function play(job) {
-    const scene = scenes[job.key], still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function spokenResult({ key, label, values, format }) {
+    const [, number, unit] = format(values[1]).match(/^(\S+) (.+)$/);
+    return `${label}: ${number} ${scenes[key].units[unit]}.`;
+  }
+
+  function play(jobs) {
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches, end = jobs.length - 1;
     const dialog = document.createElement("dialog"), canvas = document.createElement("canvas");
-    const [low, mid, high] = job.values.map(job.format);
     dialog.id = "install";
-    dialog.setAttribute("aria-label", `${job.label}: ${mid}, ${low} to ${high}`);
+    dialog.setAttribute("aria-label", jobs.map(job => {
+      const [low, mid, high] = job.values.map(job.format);
+      return `${job.label}: ${mid}, ${low} to ${high}`;
+    }).join(". "));
     canvas.width = W;
     canvas.height = H;
     dialog.append(canvas);
     document.body.append(dialog);
     const pen = canvas.getContext("2d"), image = pen.createImageData(W, H), pixels = new Uint32Array(image.data.buffer), g = screen();
-    const ctx = new AudioContext(), { duck } = score(ctx, scene, ctx.currentTime + 0.05, still), voice = speaker(duck, ctx);
-    const [, number, unit] = mid.match(/^(\S+) (.+)$/);
-    const lines = { boot: "Online.", ...scene.voice, done: `Installation complete. ${number} ${scene.units[unit]}.` };
+    const ctx = new AudioContext(), audio = synth(ctx), voice = speaker(audio.duck, ctx), start = ctx.currentTime + 0.05;
+    const done = `Installation complete. ${jobs.map(spokenResult).join(" ")}`;
     const begin = performance.now();
-    let request, spoken;
+    let request, spoken, scored = 0;
+    // Scheduling all footprints up front would hold thousands of audio nodes at once.
+    const compose = t => {
+      for (; scored <= end && t >= scored * SPAN - 0.5; scored++) {
+        score(audio, scenes[jobs[scored].key], start + scored * SPAN, !scored);
+        if (scored === end) finale(audio, start + end * SPAN + CUES.done);
+      }
+    };
+    if (still) finale(audio, start);
     const tick = now => {
-      const t = still ? CUES.done + 9 : Math.max(0, now - begin) / 1000;
-      const phase = PHASES.findLast(p => t >= CUES[p]);
-      if (phase !== spoken && lines[phase]) voice.say(lines[phase]);
-      if (phase !== spoken && phase === "collapse") voice.stop();
-      spoken = phase;
-      const s = frame(g, scene, job, t);
+      const clock = still ? end * SPAN + CUES.done + 9 : Math.max(0, now - begin) / 1000;
+      const at = clamp(Math.floor((clock - CUES.link) / SPAN), 0, end), t = Math.max(at && CUES.link, clock - at * SPAN);
+      const phase = PHASES.findLast(p => t >= CUES[p]), cue = at + phase, scene = scenes[jobs[at].key];
+      const line = { boot: "Online.", ...scene.voice, done }[phase];
+      if (!still) compose(clock);
+      if (cue !== spoken && line) voice.say(line);
+      if (cue !== spoken && phase === "collapse") voice.stop();
+      spoken = cue;
+      const s = frame(g, jobs, at, t);
       g.paint(pixels, palette(scene.colors, s.done ? 0 : s.overload));
       pen.putImageData(image, 0, 0);
       if (s.done < 1) request = requestAnimationFrame(tick);
@@ -901,7 +928,7 @@ const installer = (() => {
       voice.stop();
       ctx.close();
       dialog.remove();
-      document.querySelector(`[data-play="${job.key}"]`)?.focus({ preventScroll: true });
+      document.getElementById("play").focus({ preventScroll: true });
     };
     dialog.showModal();
     tick(begin);

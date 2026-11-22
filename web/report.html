@@ -39,13 +39,14 @@ h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
 .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 #footprint { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 #footprint button { text-align: left; }
-#footprint .label { padding-right: 52px; }
+#footprint .label { padding-right: 24px; }
 .item { position: relative; display: grid; }
 .item .tile { display: flex; flex-direction: column; justify-content: flex-start; }
-#footprint :is(.info, .play) { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; padding: 6px; border: 0; border-radius: 50%; background: none; color: var(--muted); }
-#footprint .play { right: 32px; }
-#footprint :is(.info, .play):hover { color: var(--ink); background: var(--wash); }
-#footprint [aria-pressed="true"] ~ :is(.info, .play) { color: var(--page); }
+.info, .play { width: 28px; height: 28px; padding: 6px; border: 0; border-radius: 50%; background: none; color: var(--muted); }
+#footprint .info { position: absolute; top: 4px; right: 4px; }
+.play { align-self: flex-start; margin: -4px 0; }
+:is(.info, .play):hover { color: var(--ink); background: var(--wash); }
+#footprint [aria-pressed="true"] ~ .info { color: var(--page); }
 :is(.info, .play) svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .tile .label { color: var(--ink-2); font-size: 13px; }
 .tile .value { font-size: 28px; font-weight: 600; line-height: 1.25; }
@@ -96,7 +97,7 @@ tr.sum td { font-weight: 600; }
 <main>
   <div class="filters" id="filters"></div>
   <div class="tiles" id="tiles"></div>
-  <div class="card"><h2>Footprint</h2><div id="footprint"></div></div>
+  <div class="card"><div class="head"><h2>Footprint</h2><button class="play" id="play" aria-label="Play footprint"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.75 2.75v10.5l8.5-5.25z"/></svg></button></div><div id="footprint"></div></div>
   <div class="card"><h2 id="daily-title"></h2><div id="daily"></div></div>
   <div class="card" id="detail" hidden></div>
   <div class="two">
@@ -442,18 +443,17 @@ function infoButton(label, [formula, note]) {
   hover(button, () => tipRows(label, [[formula, ""]], note), `${label}: ${formula}. ${note}`);
   return button;
 }
-function playButton(key, label, values, units) {
-  const icon = svg("svg", { viewBox: "0 0 16 16", "aria-hidden": "true" });
-  icon.append(svg("path", { d: "M4.75 2.75v10.5l8.5-5.25z" }));
-  return el("button", { class: "play", "data-play": key, "aria-label": `Play ${label}`, onclick: () => installer.play({ key, label, values, format: v => quantity(v, units) }) }, icon);
-}
+const estimates = rows => { const cost = span(total(rows), COST); return [0, 1, 2].map(s => footprintOf(cost, s)); };
+$("play").onclick = () => {
+  const scenarios = estimates(rowsIn(state.from, state.to));
+  installer.play(METRICS.map(({ key, label, units }) => ({ key, label, values: scenarios.map(s => s[key]), format: v => quantity(v, units) })));
+};
 function renderFootprint(rows) {
-  const cost = span(total(rows), COST), [low, mid, high] = [0, 1, 2].map(s => footprintOf(cost, s)), held = document.activeElement?.dataset.metric;
+  const [low, mid, high] = estimates(rows), held = document.activeElement?.dataset.metric;
   $("footprint").replaceChildren(...METRICS.map(({ key, label, units, how }) => el("div", { class: "item" }, el("button", { class: "tile", "data-metric": key, "aria-pressed": state.unit === key, onclick: () => unit(state.unit === key ? "cost" : key) },
     el("div", { class: "label" }, label),
     el("div", { class: "value" }, quantity(mid[key], units)),
-    el("div", { class: "note" }, `${quantity(low[key], units)} to ${quantity(high[key], units)}`)),
-    playButton(key, label, [low[key], mid[key], high[key]], units), infoButton(label, how))));
+    el("div", { class: "note" }, `${quantity(low[key], units)} to ${quantity(high[key], units)}`)), infoButton(label, how))));
   if (held) document.querySelector(`#footprint [data-metric="${held}"]`).focus({ preventScroll: true });
 }
 function renderDetail() {
