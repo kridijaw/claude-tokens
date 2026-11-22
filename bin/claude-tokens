@@ -41,6 +41,19 @@ PRICES = {
 PRICING_URL = "https://platform.claude.com/docs/en/about-claude/pricing.md"
 LONG_PROMPT = {"claude-haiku-5-5": (100_000, 5)}
 
+# Method and sources: docs/footprint.md.
+FOOTPRINT = {
+    "wh_per_usd": [60, 110, 200],
+    "co2_kg_per_kwh": 0.35,
+    "water_l_per_kwh": 4.88,
+    "co2_kg_per_tree_year": 22,
+    "gha_per_t_co2": 0.337,
+    "sea_ice_m2_per_t_co2": 3,
+    "co2_kg_per_km": 0.1067,
+    "brain_w": 20,
+    "ice_kj_per_kg": 333.5,
+}
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY, at TEXT, cwd TEXT, model TEXT,
@@ -306,6 +319,7 @@ def write_report(db):
     data = {
         "types": TYPES,
         "gaps": CONFIG["gaps"],
+        "footprint": FOOTPRINT,
         "unpriced": unpriced,
         "repos": repos,
         "models": models,
