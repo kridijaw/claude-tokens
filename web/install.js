@@ -40,7 +40,7 @@ const installer = (() => {
   }
 
   function screen() {
-    const px = new Uint8Array(W * H), copy = new Uint8Array(W * H);
+    const px = new Uint8Array(W * H);
     let x0 = 0, y0 = 0, x1 = W, y1 = H, drawn = 0, total = 0, share = 1;
     const g = {
       clip(x, y, w, h) { x0 = x; y0 = y; x1 = x + w; y1 = y + h; },
@@ -87,16 +87,6 @@ const installer = (() => {
         }
       },
       center(x, y, str, c, size = 1) { g.text(Math.round(x - (str.length * 6 - 1) * size / 2), y, str, c, size); },
-      collapse(part) {
-        const half = Math.max(0.5, (1 - part) * H / 2);
-        copy.set(px);
-        g.rect(0, 0, PANE, H, 0);
-        for (let y = Math.ceil(H / 2 - half); y < H / 2 + half; y++) {
-          const from = clamp(Math.round(H / 2 + (y - H / 2) * H / 2 / half), 0, H - 1);
-          for (let x = 0; x < PANE; x++) px[y * W + x] = copy[from * W + x];
-        }
-        if (part > 0.6) { const wide = Math.round((1 - part) * PANE); g.rect((PANE >> 1) - wide, H / 2, wide * 2, 1, WHITE); }
-      },
       paint(out, colors) { for (let i = 0; i < px.length; i++) out[i] = colors[px[i]]; },
     };
     return g;
@@ -840,12 +830,10 @@ const installer = (() => {
       }
     }
     g.text(6, 157, s.transfer ? job.format(s.value) : "", WHITE, 2);
-    g.text(6, 176, (phase === "boot" ? "POWER ON" : scene.status[phase === "collapse" ? "overload" : phase]).slice(0, Math.floor(since * 40)), 6);
+    g.text(6, 176, (phase === "boot" ? "POWER ON" : scene.status[phase === "collapse" ? "overload" : phase]).slice(0, phase === "collapse" ? undefined : Math.floor(since * 40)), 6);
     g.box(6, 187, 212, 9, FRAME);
     const cells = Math.round((s.boot * 0.04 + s.link * 0.12 + s.transfer * 0.84) * 52);
     for (let i = 0; i < cells; i++) g.rect(8 + i * 4, 189, 3, 5, 6);
-    if (s.collapse) g.collapse(s.collapse);
-    else if (at && phase === "link" && since < 0.25) g.collapse(1 - since / 0.25);
     return s;
   }
 
