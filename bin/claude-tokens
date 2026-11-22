@@ -88,6 +88,8 @@ def load_config():
         sys.exit(f"{CONFIG_FILE}: {error}")
     if config["root"]:
         config["root"] = Path(config["root"]).expanduser()
+    elif config["groups"]:
+        sys.exit(f"{CONFIG_FILE}: groups needs root")
     return config
 
 
