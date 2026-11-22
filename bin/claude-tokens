@@ -145,7 +145,7 @@ def sync(db):
         try:
             stat = path.stat()
             inode, start = known.get(str(path), (stat.st_ino, 0))
-            # claude-history rewrites a transcript when it scrubs an entry.
+            # Other tools may rewrite a transcript, for example to remove an entry.
             if inode != stat.st_ino or stat.st_size < start:
                 start = 0
             elif stat.st_size == start:
@@ -295,6 +295,7 @@ def rates_for(prices, model, day, prompt):
 def usage(db):
     """Tokens and cost per local hour, repo and model."""
     cells, unpriced, prices = {}, {}, load_prices(db)
+    # cost-state rows are manual corrections for sessions whose transcripts have truncated output counts.
     query = """SELECT id LIKE 'cost-state:%', at, cwd, model, input, cache_write, cache_read, output,
       coalesce(cache_write_1h, 0), thinking FROM messages WHERE model != '<synthetic>'"""
     for correction, at, cwd, model, fresh, write, read, output, write_1h, thinking in db.execute(query):
@@ -316,6 +317,8 @@ def usage(db):
 
 def write_report(db):
     cells, unpriced = usage(db)
+    if not cells:
+        sys.exit(f"No usage found in {PROJECTS}")
     repos = sorted({key[2] for key in cells})
     models = sorted({key[3] for key in cells})
     data = {
