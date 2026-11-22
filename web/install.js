@@ -7,7 +7,6 @@ const installer = (() => {
   const SPAN = CUES.done - CUES.link;
   const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
   const TAU = Math.PI * 2;
-  const MASS = { g: "grams", kg: "kilograms", t: "tonnes" };
   const oval = (x, y, rx, ry, n = 32, from = 0, to = TAU) => Array.from({ length: to - from < TAU ? n + 1 : n }, (_, i) => {
     const a = from + (to - from) * i / n;
     return [x + Math.cos(a) * rx, y + Math.sin(a) * ry];
@@ -136,7 +135,6 @@ const installer = (() => {
       colors: [[96, 255, 120], [255, 176, 48]],
       status: { link: "LINKING POWER GRID", transfer: "RECEIVING ENERGY DATA", overload: "OVERLOAD" },
       voice: { link: "Linking to the power grid.", transfer: "Receiving energy data.", overload: "Overload." },
-      units: { Wh: "watt hours", kWh: "kilowatt hours", MWh: "megawatt hours" },
       draw(g, s) {
         const u = Math.max(0, s.t - CUES.link), angle = 1.1 * u * u, shake = s.overload * Math.sin(s.t * 47) * 1.5 * (1 - s.done);
         g.reveal(s.link);
@@ -219,7 +217,6 @@ const installer = (() => {
       colors: [[112, 226, 255], [96, 255, 170]],
       status: { link: "LINKING SATELLITE", transfer: "RECEIVING SEA ICE DATA", overload: "SIGNAL BREAKING UP" },
       voice: { link: "Satellite link established.", transfer: "Receiving sea ice data.", overload: "Signal lost." },
-      units: { "cm²": "square centimeters", "m²": "square meters" },
       draw(g, s) {
         const turn = s.t * 0.05, cos = Math.cos(turn), sin = Math.sin(turn);
         const spot = (x, y) => [cx + (x * cos - y * sin) * 1.18, cy + (x * sin + y * cos) * 0.9];
@@ -284,7 +281,6 @@ const installer = (() => {
       colors: [[214, 222, 150], [255, 120, 70]],
       status: { link: "SEALING JAR", transfer: "RECEIVING CO2 DATA", overload: "CONTAINMENT BREACH" },
       voice: { link: "Sealing the jar.", transfer: "Receiving carbon dioxide data.", overload: "Breach." },
-      units: MASS,
       draw(g, s) {
         g.reveal(s.link);
         g.path(oval(cx, 72, r, 44, 24, Math.PI, TAU), 5);
@@ -335,7 +331,6 @@ const installer = (() => {
       colors: [[90, 190, 255], [120, 255, 226]],
       status: { link: "OPENING VALVE", transfer: "RECEIVING WATER DATA", overload: "OVERFLOW" },
       voice: { link: "Opening the valve.", transfer: "Receiving water data.", overload: "Overflow." },
-      units: { mL: "milliliters", L: "liters", "m³": "cubic meters" },
       draw(g, s) {
         const level = floor - (floor - top) * s.transfer, wave = (x, size) => Math.sin(x * 0.13 + s.t * 5) * size + Math.sin(x * 0.31 - s.t * 3.4) * size * 0.5;
         if (s.transfer) for (let x = left + 1; x < right; x++) {
@@ -398,7 +393,6 @@ const installer = (() => {
       colors: [[130, 255, 96], [255, 190, 110]],
       status: { link: "LOCATING TREE", transfer: "RECEIVING TREE DATA", overload: "TIMBER" },
       voice: { link: "Locating tree.", transfer: "Receiving tree data.", overload: "Timber." },
-      units: { "tree-years": "tree years" },
       draw(g, s) {
         g.reveal(s.link);
         for (let i = 0; i < 5; i++) g.line(6, ground + i * i * 0.7, 218, ground + i * i * 0.7, 3 - Math.min(2, i));
@@ -480,7 +474,6 @@ const installer = (() => {
       colors: [[110, 255, 190], [255, 216, 70]],
       status: { link: "SCANNING GLOBE", transfer: "RECEIVING LAND DATA", overload: "OUT OF LAND" },
       voice: { link: "Scanning the globe.", transfer: "Receiving land data.", overload: "Out of land." },
-      units: { "gm²": "global square meters", gha: "global hectares" },
       draw(g, s) {
         const turn = s.t * 0.45, scan = 1.5 - s.link * 3;
         g.reveal(s.link * 1.5);
@@ -525,7 +518,6 @@ const installer = (() => {
       colors: [[255, 180, 70], [110, 230, 255]],
       status: { link: "STARTING ENGINE", transfer: "RECEIVING DISTANCE DATA", overload: "REDLINE" },
       voice: { link: "Starting engine.", transfer: "Receiving distance data.", overload: "Redline." },
-      units: { m: "meters", km: "kilometers" },
       draw(g, s) {
         const u = Math.max(0, s.t - CUES.transfer), rough = s.overload * (1 - s.collapse) * 3;
         const travel = u < 3.1 ? 1.15 * u * u : 11.05 + 7.1 * (u - 3.1) + 2 * (u - 3.1) ** 2;
@@ -599,7 +591,6 @@ const installer = (() => {
       colors: [[255, 134, 190], [255, 240, 140]],
       status: { link: "LINKING BRAIN", transfer: "RECEIVING BRAIN DATA", overload: "OVERTHINKING" },
       voice: { link: "Linking to the brain.", transfer: "Receiving brain data.", overload: "Overthinking." },
-      units: { min: "minutes", h: "hours", days: "days", years: "years" },
       draw(g, s) {
         const yaw = Math.PI / 2 + Math.sin(s.t * 0.9) * 0.75, cos = Math.cos(yaw), sin = Math.sin(yaw);
         const spot = ([x, y, z]) => {
@@ -663,7 +654,6 @@ const installer = (() => {
       colors: [[170, 225, 255], [255, 130, 60]],
       status: { link: "HEATING ICE", transfer: "RECEIVING ICE DATA", overload: "MELTDOWN" },
       voice: { link: "Heating the ice.", transfer: "Receiving ice data.", overload: "Meltdown." },
-      units: MASS,
       draw(g, s) {
         const fall = clamp(s.overload * 1.6 - 0.3), h = 76 * (1 - 0.55 * s.transfer) * (1 - fall * 0.96), w = 44 * (1 - 0.22 * s.transfer) * (1 + fall * 0.3);
         const puddle = oval(cx, base + 12, 30 + s.transfer * 44 + fall * 20, 8 + s.transfer * 7 + fall * 3);
@@ -878,11 +868,6 @@ const installer = (() => {
     return s;
   }
 
-  function spokenResult({ key, label, values, format }) {
-    const [, number, unit] = format(values[1]).match(/^(\S+) (.+)$/);
-    return `${label}: ${number} ${scenes[key].units[unit]}.`;
-  }
-
   function play(jobs) {
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches, end = jobs.length - 1;
     const dialog = document.createElement("dialog"), canvas = document.createElement("canvas");
@@ -897,7 +882,6 @@ const installer = (() => {
     document.body.append(dialog);
     const pen = canvas.getContext("2d"), image = pen.createImageData(W, H), pixels = new Uint32Array(image.data.buffer), g = screen();
     const ctx = new AudioContext(), audio = synth(ctx), voice = speaker(audio.duck, ctx), start = ctx.currentTime + 0.05;
-    const done = `Installation complete. ${jobs.map(spokenResult).join(" ")}`;
     const begin = performance.now();
     let request, spoken, scored = 0;
     // Scheduling all footprints up front would hold thousands of audio nodes at once.
@@ -912,7 +896,7 @@ const installer = (() => {
       const clock = still ? end * SPAN + CUES.done + 9 : Math.max(0, now - begin) / 1000;
       const at = clamp(Math.floor((clock - CUES.link) / SPAN), 0, end), t = Math.max(at && CUES.link, clock - at * SPAN);
       const phase = PHASES.findLast(p => t >= CUES[p]), cue = at + phase, scene = scenes[jobs[at].key];
-      const line = { boot: "Online.", ...scene.voice, done }[phase];
+      const line = { boot: "Online.", ...scene.voice, done: "Installation complete." }[phase];
       if (!still) compose(clock);
       if (cue !== spoken && line) voice.say(line);
       if (cue !== spoken && phase === "collapse") voice.stop();
