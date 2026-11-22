@@ -37,10 +37,12 @@ button[aria-pressed="true"] { background: var(--ink); color: var(--page); }
 .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 16px; min-width: 0; }
 h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
 .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+#footprint { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+#footprint button { text-align: left; }
 .tile .label { color: var(--ink-2); font-size: 13px; }
 .tile .value { font-size: 28px; font-weight: 600; line-height: 1.25; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-@media (max-width: 860px) { .two { grid-template-columns: 1fr; } .tiles { grid-template-columns: 1fr 1fr; } .toggle { margin-left: 0; } }
+@media (max-width: 860px) { .two { grid-template-columns: 1fr; } .tiles, #footprint { grid-template-columns: 1fr 1fr; } .toggle { margin-left: 0; } }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--ink-2); font-size: 12px; margin-bottom: 8px; }
 .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
 svg { display: block; width: 100%; overflow: visible; }
@@ -74,12 +76,15 @@ tr.sum td { font-weight: 600; }
 #tip .r i { width: 12px; height: 3px; border-radius: 2px; }
 #tip .r span { color: var(--ink-2); }
 .note { color: var(--ink-2); font-size: 12px; margin-top: 8px; }
+.tile .note { margin-top: 0; }
+.tile[aria-pressed="true"] :is(.label, .note) { color: inherit; }
 </style>
 </head>
 <body>
 <main>
   <div class="filters" id="filters"></div>
   <div class="tiles" id="tiles"></div>
+  <div class="card"><h2>Footprint</h2><div id="footprint"></div></div>
   <div class="card"><h2 id="daily-title"></h2><div id="daily"></div></div>
   <div class="card" id="detail" hidden></div>
   <div class="two">
@@ -96,7 +101,7 @@ tr.sum td { font-weight: 600; }
 <script>
 "use strict";
 const DATA = /*DATA*/null;
-const N = DATA.types.length, TOK = 4, COST = 4 + N;
+const N = DATA.types.length, TOK = 4, COST = 4 + N, FOOT = COST + N;
 const $ = id => document.getElementById(id);
 const color = i => `var(--c${i})`;
 const first = DATA.rows[0][0], last = DATA.rows[DATA.rows.length - 1][0];
@@ -127,11 +132,37 @@ const short = day => new Date(day).toLocaleDateString("en", { timeZone: "UTC", d
 const inGap = day => DATA.gaps.some(([a, b]) => day >= a && day <= b);
 const usd = v => "$" + v.toLocaleString("en", v >= 1000 ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const compact = v => v.toLocaleString("en", { notation: "compact", maximumFractionDigits: 1 });
-const fmt = (v, unit = state.unit) => unit === "cost" ? usd(v) : compact(v);
-const axis = v => state.unit === "cost" ? "$" + (v >= 1e4 ? compact(v) : v.toLocaleString("en")) : compact(v);
+const metric = (key = state.unit) => METRICS.find(m => m.key === key);
+const unitLabel = () => state.unit === "cost" ? "API cost" : state.unit === "tokens" ? "Tokens" : metric().label;
+const fmt = (v, key = state.unit) => key === "cost" ? usd(v) : key === "tokens" ? compact(v) : quantity(v, metric(key).units);
+const axis = (v, [name, size]) => state.unit === "cost" ? "$" + (v >= 1e4 ? compact(v) : v.toLocaleString("en"))
+  : state.unit === "tokens" ? compact(v) : (v / size).toLocaleString("en", { maximumSignificantDigits: 3 }) + " " + name;
 const pct = v => v >= 0.0995 ? (v * 100).toFixed(0) + "%" : v >= 0.0005 ? (v * 100).toFixed(1) + "%" : v > 0 ? "<0.1%" : "0%";
-const base = () => state.unit === "cost" ? COST : TOK;
+const base = () => state.unit === "cost" ? COST : state.unit === "tokens" ? TOK : FOOT;
 const span = (row, at) => { let s = 0; for (let i = 0; i < N; i++) s += row[at + i]; return s; };
+
+const F = DATA.footprint;
+const co2 = kwh => kwh * F.co2_kg_per_kwh;
+const METRICS = [
+  { key: "energy", label: "Energy", of: kwh => kwh, units: [["Wh", 0.001], ["kWh", 1], ["MWh", 1000]] },
+  { key: "co2", label: "CO2", of: co2, units: [["g", 0.001], ["kg", 1], ["t", 1000]] },
+  { key: "water", label: "Water", of: kwh => kwh * F.water_l_per_kwh, units: [["mL", 0.001], ["L", 1], ["m³", 1000]] },
+  { key: "trees", label: "Tree-years", of: kwh => co2(kwh) / F.co2_kg_per_tree_year, units: [["tree-years", 1]] },
+  { key: "gha", label: "Global hectares", of: kwh => co2(kwh) / 1000 * F.gha_per_t_co2, units: [["gm²", 0.0001], ["gha", 1]] },
+  { key: "seaice", label: "Arctic sea ice", of: kwh => co2(kwh) / 1000 * F.sea_ice_m2_per_t_co2, units: [["cm²", 0.0001], ["m²", 1]] },
+  { key: "km", label: "Km driven", of: kwh => co2(kwh) / F.co2_kg_per_km, units: [["m", 0.001], ["km", 1]] },
+  { key: "brain", label: "Human brain time", of: kwh => kwh * 1000 / F.brain_w, units: [["min", 1 / 60], ["h", 1], ["days", 24], ["years", 8766]] },
+  { key: "ice", label: "Ice melted", of: kwh => kwh * 3600 / F.ice_kj_per_kg, units: [["g", 0.001], ["kg", 1], ["t", 1000]] },
+];
+function footprintOf(usd, scenario = 1) {
+  const kwh = usd * F.wh_per_usd[scenario] / 1000;
+  return Object.fromEntries(METRICS.map(m => [m.key, m.of(kwh)]));
+}
+const unitFor = (v, units) => units.findLast(u => v >= u[1]) || units[0];
+function quantity(v, units) {
+  const [name, size] = unitFor(v, units);
+  return (v / size).toLocaleString("en", { minimumSignificantDigits: v ? 3 : 1, maximumSignificantDigits: 3 }) + " " + name;
+}
 
 function rowsIn(from, to) {
   return DATA.rows.filter(r => r[0] >= from && r[0] <= to
@@ -140,17 +171,18 @@ function rowsIn(from, to) {
     && (!state.model || DATA.models[r[3]] === state.model));
 }
 function sumBy(rows, key) {
-  const out = new Map();
+  const out = new Map(), m = metric(), rate = m ? footprintOf(1)[m.key] : 0;
   for (const r of rows) {
     const k = key(r);
     let a = out.get(k);
-    if (!a) out.set(k, a = new Array(COST + N).fill(0));
-    for (let i = TOK; i < COST + N; i++) a[i] += r[i];
-    if (r[1] === -1) a[0] += span(r, base());
+    if (!a) out.set(k, a = new Array(FOOT + N).fill(0));
+    for (let i = TOK; i < FOOT; i++) a[i] += r[i];
+    if (m) for (let i = 0; i < N; i++) a[FOOT + i] += r[COST + i] * rate;
+    if (r[1] === -1) a[0] += m ? span(r, COST) * rate : span(r, base());
   }
   return out;
 }
-const total = rows => sumBy(rows, () => 0).get(0) || new Array(COST + N).fill(0);
+const total = rows => sumBy(rows, () => 0).get(0) || new Array(FOOT + N).fill(0);
 
 function tipRows(title, rows, note) {
   const tip = $("tip");
@@ -206,17 +238,19 @@ function ticks(max) {
 }
 
 function stacked(host, list, byDay, series, height, patternId) {
-  const W = host.clientWidth, left = 52, top = 8, bottom = 22, H = height - top - bottom;
-  const slot = (W - left) / list.length, bw = Math.max(1, Math.min(24, slot - Math.min(2, slot * 0.25)));
+  const W = host.clientWidth, top = 8, bottom = 22, H = height - top - bottom, m = metric();
   const b = base(), value = a => series.reduce((s, i) => s + a[b + i], 0);
   const max = Math.max(0, ...list.map(d => byDay.has(d) ? value(byDay.get(d)) : 0));
-  const marks = ticks(max), y = v => top + H - (marks.length > 1 ? v / marks[marks.length - 1] * H : 0);
+  const shown = m ? unitFor(max, m.units) : ["", 1], marks = ticks(max / shown[1]).map(t => t * shown[1]), labels = marks.map(t => axis(t, shown));
+  const left = m ? Math.max(52, ...labels.map(t => t.length * 7 + 8)) : 52;
+  const slot = (W - left) / list.length, bw = Math.max(1, Math.min(24, slot - Math.min(2, slot * 0.25)));
+  const y = v => top + H - (marks.length > 1 ? v / marks[marks.length - 1] * H : 0);
   const root = svg("svg", { height, viewBox: `0 0 ${W} ${height}` });
   root.append(hatch(patternId));
-  for (const t of marks) {
+  marks.forEach((t, i) => {
     root.append(svg("line", { x1: left, x2: W, y1: y(t), y2: y(t), stroke: t ? "var(--grid)" : "var(--axis)" }));
-    root.append(svg("text", { x: left - 8, y: y(t) + 4, "text-anchor": "end" }, axis(t)));
-  }
+    root.append(svg("text", { x: left - 8, y: y(t) + 4, "text-anchor": "end" }, labels[i]));
+  });
   let run = null;
   list.concat("").forEach((d, i) => {
     if (d && inGap(d)) { if (run === null) run = i; return; }
@@ -258,9 +292,9 @@ const present = a => [...Array(N).keys()].filter(i => a[TOK + i] > 0);
 
 function renderDaily(rows) {
   const host = $("daily"), list = days(state.from, state.to), byDay = sumBy(rows, r => r[0]), idx = present(total(rows));
-  $("daily-title").textContent = state.unit === "cost" ? "API cost per day" : "Tokens per day";
+  $("daily-title").textContent = unitLabel() + " per day";
   host.replaceChildren();
-  if (state.unit === "cost") {
+  if (state.unit !== "tokens") {
     legend(host, idx);
     stacked(host, list, byDay, idx, 280, "gap-all");
   } else for (const i of idx) {
@@ -352,7 +386,7 @@ function ranked(host, map, limit = Infinity) {
   const box = el("div", { class: "bars" });
   for (const [name, v] of list) {
     const bar = el("div", {}, el("div", { class: "bar", style: `width:${v / max * 100}%` }));
-    hover(bar, () => tipRows(name, [[fmt(v), state.unit === "cost" ? "API cost" : "Tokens"]]), `${name}: ${fmt(v)}`);
+    hover(bar, () => tipRows(name, [[fmt(v), unitLabel()]]), `${name}: ${fmt(v)}`);
     box.append(el("div", { class: "name", title: name }, name), bar, el("div", { class: "num" }, fmt(v)));
   }
   host.append(box);
@@ -378,6 +412,14 @@ function renderTiles(rows) {
   const missing = Object.keys(DATA.unpriced);
   if (missing.length) $("tiles").append(el("div", { class: "note" }, "No price for: " + missing.join(", ")));
 }
+function renderFootprint(rows) {
+  const cost = span(total(rows), COST), [low, mid, high] = [0, 1, 2].map(s => footprintOf(cost, s)), held = document.activeElement?.dataset.metric;
+  $("footprint").replaceChildren(...METRICS.map(({ key, label, units }) => el("button", { class: "tile", "data-metric": key, "aria-pressed": state.unit === key, onclick: () => unit(state.unit === key ? "cost" : key) },
+    el("div", { class: "label" }, label),
+    el("div", { class: "value" }, quantity(mid[key], units)),
+    el("div", { class: "note" }, `${quantity(low[key], units)} to ${quantity(high[key], units)}`))));
+  if (held) document.querySelector(`#footprint [data-metric="${held}"]`).focus({ preventScroll: true });
+}
 function renderDetail() {
   const host = $("detail");
   host.hidden = !state.day;
@@ -393,13 +435,22 @@ function renderDetail() {
 }
 function render() {
   const rows = rowsIn(state.from, state.to);
-  renderTiles(rows); renderDaily(rows); renderDetail(); renderCalendar(rows); renderHours(rows);
+  renderTiles(rows); renderFootprint(rows); renderDaily(rows); renderDetail(); renderCalendar(rows); renderHours(rows);
   renderTypes(rows); renderModels(rows); renderRepos(rows);
 }
 function select(label, options, key) {
   const node = el("select", { "aria-label": label, onchange: e => { state[key] = e.target.value; render(); } });
   for (const [v, t] of options) node.append(el("option", { value: v }, t));
   return node;
+}
+const toggle = {
+  cost: el("button", { "aria-pressed": "true", onclick: () => unit("cost") }, "API cost"),
+  tokens: el("button", { "aria-pressed": "false", onclick: () => unit("tokens") }, "Tokens"),
+};
+function unit(u) {
+  state.unit = u;
+  for (const [k, button] of Object.entries(toggle)) button.setAttribute("aria-pressed", k === u);
+  render();
 }
 function setup() {
   const from = el("input", { type: "date", min: first, max: last, value: first, "aria-label": "From" });
@@ -413,14 +464,11 @@ function setup() {
   } });
   for (const [v, t] of [["all", "All dates"], ["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["", "Custom"]]) preset.append(el("option", { value: v }, t));
   const groups = [...new Set(DATA.repos.map(r => r[0]))];
-  const cost = el("button", { "aria-pressed": "true" }, "API cost"), tokens = el("button", { "aria-pressed": "false" }, "Tokens");
-  const unit = u => { state.unit = u; cost.setAttribute("aria-pressed", u === "cost"); tokens.setAttribute("aria-pressed", u !== "cost"); render(); };
-  cost.onclick = () => unit("cost"); tokens.onclick = () => unit("tokens");
   $("filters").append(preset, from, to,
     select("Group", [["", "All groups"], ...groups.map(g => [g, g])], "group"),
     select("Repo", [["", "All repos"], ...DATA.repos.map(r => [r.join("/"), r[0] === "other" ? "other" : r.join("/")])], "repo"),
     select("Model", [["", "All models"], ...DATA.models.map(m => [m, m.replace("claude-", "")])], "model"),
-    el("div", { class: "toggle" }, cost, tokens));
+    el("div", { class: "toggle" }, ...Object.values(toggle)));
 }
 setup();
 render();
