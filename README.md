@@ -2,12 +2,23 @@
 
 Claude Code token usage per repo. Each run copies new usage from the transcripts in `~/.claude/projects` into a local ledger, which keeps it after Claude Code deletes them.
 
-Needs macOS and Python 3.11 or newer.
+Needs macOS and Python 3.11 or newer. Not affiliated with Anthropic.
+
+## Install
+
+Clone the repo and link the script into a folder on your `PATH`:
 
 ```sh
-bin/claude-tokens                 # table per repo
-bin/claude-tokens --html          # write and open a local HTML report
-bin/claude-tokens --check-prices  # use today's prices from the Claude pricing page
+git clone https://github.com/kridijaw/claude-tokens.git
+ln -s "$PWD/claude-tokens/bin/claude-tokens" ~/.local/bin/
+```
+
+## Usage
+
+```sh
+claude-tokens                 # table per repo
+claude-tokens --html          # write and open a local HTML report
+claude-tokens --check-prices  # use today's prices from the Claude pricing page
 ```
 
 ## Groups
