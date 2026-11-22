@@ -444,10 +444,11 @@ function infoButton(label, [formula, note]) {
   return button;
 }
 const estimates = rows => { const cost = span(total(rows), COST); return [0, 1, 2].map(s => footprintOf(cost, s)); };
-$("play").onclick = () => {
+function play(wait) {
   const scenarios = estimates(rowsIn(state.from, state.to));
-  installer.play(METRICS.map(({ key, label, units }) => ({ key, label, values: scenarios.map(s => s[key]), format: v => quantity(v, units) })));
-};
+  installer.play(METRICS.map(({ key, label, units }) => ({ key, label, values: scenarios.map(s => s[key]), format: v => quantity(v, units) })), wait);
+}
+$("play").onclick = () => play(false);
 function renderFootprint(rows) {
   const [low, mid, high] = estimates(rows), held = document.activeElement?.dataset.metric;
   $("footprint").replaceChildren(...METRICS.map(({ key, label, units, how }) => el("div", { class: "item" }, el("button", { class: "tile", "data-metric": key, "aria-pressed": state.unit === key, onclick: () => unit(state.unit === key ? "cost" : key) },
@@ -510,6 +511,7 @@ setup();
 render();
 let timer;
 addEventListener("resize", () => { clearTimeout(timer); timer = setTimeout(render, 150); });
+/*AUTOPLAY*/
 </script>
 </body>
 </html>

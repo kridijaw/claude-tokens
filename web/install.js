@@ -849,8 +849,9 @@ const installer = (() => {
     return s;
   }
 
-  function play(jobs) {
+  function play(jobs, wait) {
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches, end = jobs.length - 1;
+    if (wait && still) return;
     const dialog = document.createElement("dialog"), canvas = document.createElement("canvas");
     dialog.id = "install";
     dialog.setAttribute("aria-label", jobs.map(job => {
@@ -862,9 +863,7 @@ const installer = (() => {
     dialog.append(canvas);
     document.body.append(dialog);
     const pen = canvas.getContext("2d"), image = pen.createImageData(W, H), pixels = new Uint32Array(image.data.buffer), g = screen();
-    const ctx = new AudioContext(), audio = synth(ctx), voice = speaker(audio.duck, ctx), start = ctx.currentTime + 0.05;
-    const begin = performance.now();
-    let request, spoken, scored = 0;
+    let ctx, audio, voice, start, begin, request, spoken, scored = 0;
     // Scheduling all footprints up front would hold thousands of audio nodes at once.
     const compose = t => {
       for (; scored <= end && t >= scored * SPAN - 0.5; scored++) {
@@ -872,7 +871,6 @@ const installer = (() => {
         if (scored === end) finale(audio, start + end * SPAN + CUES.done);
       }
     };
-    if (still) finale(audio, start);
     const tick = now => {
       const clock = still ? end * SPAN + CUES.done + 9 : Math.max(0, now - begin) / 1000;
       const at = clamp(Math.floor((clock - CUES.link) / SPAN), 0, end), t = Math.max(at && CUES.link, clock - at * SPAN);
@@ -887,16 +885,37 @@ const installer = (() => {
       pen.putImageData(image, 0, 0);
       if (s.done < 1) request = requestAnimationFrame(tick);
     };
-    dialog.onclick = () => dialog.close();
+    const run = () => {
+      dialog.onkeydown = null;
+      dialog.onclick = () => dialog.close();
+      ctx = new AudioContext();
+      audio = synth(ctx);
+      voice = speaker(audio.duck, ctx);
+      start = ctx.currentTime + 0.05;
+      begin = performance.now();
+      if (still) finale(audio, start);
+      tick(begin);
+    };
     dialog.onclose = () => {
       cancelAnimationFrame(request);
-      voice.stop();
-      ctx.close();
+      voice?.stop();
+      ctx?.close();
       dialog.remove();
       document.getElementById("play").focus({ preventScroll: true });
     };
     dialog.showModal();
-    tick(begin);
+    if (!wait) return run();
+    g.center(W / 2, 93, "PRESS ANY KEY", 7, 2);
+    g.paint(pixels, palette(scenes[jobs[0].key].colors));
+    pen.putImageData(image, 0, 0);
+    dialog.onclick = run;
+    dialog.onkeydown = e => {
+      const modifier = e.metaKey || e.ctrlKey || e.altKey || e.key === "Shift";
+      // Escape closes the dialog, and keys without activation would start it silent.
+      if (e.key === "Escape" || modifier || navigator.userActivation?.isActive === false) return;
+      e.preventDefault();
+      run();
+    };
   }
 
   return { scenes, play };

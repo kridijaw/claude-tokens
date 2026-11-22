@@ -107,7 +107,7 @@ def main():
         tool.write_report(db)
         db.close()
         OUT.parent.mkdir(parents=True, exist_ok=True)
-        OUT.write_text(tool.REPORT.read_text())
+        OUT.write_text(tool.REPORT.read_text().replace("/*AUTOPLAY*/", "play(true);"))
 
 
 if __name__ == "__main__":
