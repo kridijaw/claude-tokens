@@ -42,12 +42,13 @@ h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
 #footprint .label { padding-right: 24px; }
 .item { position: relative; display: grid; }
 .item .tile { display: flex; flex-direction: column; justify-content: flex-start; }
-.info, .play { width: 28px; height: 28px; padding: 6px; border: 0; border-radius: 50%; background: none; color: var(--muted); }
+.info { width: 28px; height: 28px; padding: 6px; border: 0; border-radius: 50%; background: none; color: var(--muted); }
 #footprint .info { position: absolute; top: 4px; right: 4px; }
-.play { align-self: flex-start; margin: -4px 0; }
-:is(.info, .play):hover { color: var(--ink); background: var(--wash); }
+.play { margin-bottom: 12px; }
+.play svg { display: inline-block; width: 11px; margin-right: 6px; vertical-align: -1px; fill: currentColor; }
+.info:hover { color: var(--ink); background: var(--wash); }
 #footprint [aria-pressed="true"] ~ .info { color: var(--page); }
-:is(.info, .play) svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.info svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .tile .label { color: var(--ink-2); font-size: 13px; }
 .tile .value { font-size: 28px; font-weight: 600; line-height: 1.25; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -97,7 +98,7 @@ tr.sum td { font-weight: 600; }
 <main>
   <div class="filters" id="filters"></div>
   <div class="tiles" id="tiles"></div>
-  <div class="card"><div class="head"><h2>Footprint</h2><button class="play" id="play" aria-label="Play footprint"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.75 2.75v10.5l8.5-5.25z"/></svg></button></div><div id="footprint"></div></div>
+  <div class="card"><div class="head"><h2>Footprint</h2><button class="play" id="play"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 1v14l13-7z"/></svg>Play animation</button></div><div id="footprint"></div></div>
   <div class="card"><h2 id="daily-title"></h2><div id="daily"></div></div>
   <div class="card" id="detail" hidden></div>
   <div class="two">
