@@ -76,7 +76,7 @@ Anthropic has published no energy, water or carbon figure for Claude inference a
 
 - One Wh per USD value is applied to every model and date, although list prices per token differ between model generations.
 - The anchors are third-party estimates for 2025 models, modelled from API latency, not measured.
-- Cache reads are about half of the ledger's cost and are weighted by their price, while no anchor contains cached prompts.
+- Cache reads are weighted by their price, while no anchor contains cached prompts.
 - Training and hardware manufacturing are excluded.
 - The grid is the US average, because the serving region is unknown.
 - On-site WUE is defined per kWh of IT load but applied to facility energy, which overstates total water by about 1%.
