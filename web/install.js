@@ -89,7 +89,6 @@ const installer = (() => {
         }
       },
       center(y, str, c, size = 1) { g.text(Math.round((W - (str.length * 6 - 1) * size) / 2), y, str, c, size); },
-      dim() { for (let i = 0; i < px.length; i++) px[i] = [0, 1, 1, 1, 2, 2, 2, 3, 1, 1, 2, 2, 1, 1, 3, 1][px[i]]; },
       tear(amount, t) {
         const rand = rng(Math.floor(t * 8));
         copy.set(px);
@@ -136,7 +135,7 @@ const installer = (() => {
       status: { link: "LINKING POWER GRID", transfer: "RECEIVING ENERGY DATA", overload: "OVERLOAD" },
       voice: { link: "Linking to the power grid.", transfer: "Receiving energy data.", overload: "Overload." },
       draw(g, s) {
-        const u = Math.max(0, s.t - CUES.link), angle = 1.1 * u * u, shake = s.overload * Math.sin(s.t * 47) * 1.5 * (1 - s.done);
+        const u = Math.max(0, s.t - CUES.link), angle = 1.1 * u * u, shake = s.overload * Math.sin(s.t * 47) * 1.5;
         g.reveal(s.link);
         for (const z of [-36, 0, 36]) ring(g, 50 + shake, z, z < 0 ? 4 : 2);
         for (let i = 0; i < 10; i++) {
@@ -157,7 +156,7 @@ const installer = (() => {
         edges.forEach(([from, to, i]) => {
           const lit = s.transfer * 1.05 > (i + 1) / nodes.length;
           g.line(...from, ...to, lit ? 9 : 1);
-          if (lit && !s.done) {
+          if (lit) {
             const p = (s.t * 1.6 + i * 0.37) % 1;
             g.rect(from[0] + (to[0] - from[0]) * p, from[1] + (to[1] - from[1]) * p, 2, 2, 11);
           }
@@ -234,7 +233,7 @@ const installer = (() => {
           g.fill(shape, gone ? 3 : f.shade - 1);
           g.poly(shape, gone ? 11 : f.shade);
         }
-        if (s.link && !s.done) {
+        if (s.link) {
           const sweep = s.link < 1 ? s.link * TAU : (s.t - CUES.transfer) * 2.2;
           for (let k = 14; k >= 0; k--) {
             const a = sweep - k * 0.02;
@@ -353,7 +352,7 @@ const installer = (() => {
           g.line(28, 29, 28 + Math.cos(a) * 10, 29 + Math.sin(a) * 10, 6);
         }
         g.revealed();
-        if (s.transfer && !s.done) for (const b of bubbles) {
+        if (s.transfer) for (const b of bubbles) {
           const y = floor - 4 - ((s.t * b.v + b.p) % 1) * (floor - 4 - level);
           if (y > level + 4) g.box(b.x, y, 3, 3, 6);
         }
@@ -420,7 +419,7 @@ const installer = (() => {
         for (let i = 1; i <= count; i++) g.poly(wobble.map((w, k) => {
           const a = k / wobble.length * TAU, size = i * 2.6 * (0.92 + w);
           return [hub[0] + Math.cos(a) * size, hub[1] + Math.sin(a) * size];
-        }), i === count && !s.done ? 11 : 8 + i % 2);
+        }), i === count ? 11 : 8 + i % 2);
         g.rect(hub[0], hub[1], 1, 1, 11);
       },
       score(a, T) {
@@ -490,7 +489,7 @@ const installer = (() => {
           else if (c.land) g.rect(x, y, 2, 2, z > 0.5 ? 5 : 3);
         }
         if (s.link && s.link < 1) arc(g, p => [scan, p * TAU], 7);
-        if (s.transfer && !s.done) for (let k = 3; k >= 0; k--) arc(g, p => [(p - 0.5) * Math.PI, s.t * 2.4 - k * 0.05], k ? 5 : 7);
+        if (s.transfer) for (let k = 3; k >= 0; k--) arc(g, p => [(p - 0.5) * Math.PI, s.t * 2.4 - k * 0.05], k ? 5 : 7);
       },
       score(a, T) {
         a.osc("sine", [[T.boot, 73], [T.collapse, 73]], [[T.boot, 0], [T.link, 0.12], [T.collapse, 0.18]]);
@@ -550,7 +549,7 @@ const installer = (() => {
         g.revealed();
         const needle = Math.PI + revs(s) * Math.PI;
         g.line(46, 147, 46 + Math.cos(needle) * 19, 147 + Math.sin(needle) * 19, s.overload ? RED : 11);
-        if (s.link === 1 && !s.done) [...String(Math.floor(s.value)).padStart(6, "0").slice(-6)].forEach((digit, i) => {
+        if (s.link === 1) [...String(Math.floor(s.value)).padStart(6, "0").slice(-6)].forEach((digit, i) => {
           g.box(100 + i * 18, 124, 17, 22, 4);
           g.text(104 + i * 18, 128, digit, 7, 2);
         });
@@ -610,7 +609,7 @@ const installer = (() => {
         sylvian.forEach(line => trace(line, 7, 0));
         g.revealed();
         const rate = s.link * 0.03 + s.transfer * 0.3 + s.overload * 0.35;
-        if (s.link === 1 && !s.done) cells.forEach(([from, to, phase], i) => {
+        if (s.link === 1) cells.forEach(([from, to, phase], i) => {
           if (rng(i * 97 + Math.floor(s.t * 5 + phase))() > rate) return;
           const p = spot(from), q = spot(to);
           if (p[2] > 0) return;
@@ -674,7 +673,7 @@ const installer = (() => {
         g.line(...side[0], ...F, 7);
         for (let i = 0; i < 24; i++) g.line(28 + i * 7, i & 1 ? 137 : 145, 35 + i * 7, i & 1 ? 145 : 137, 8 + Math.round(s.link * 2 + (s.overload ? 1 : 0)));
         g.revealed();
-        if (s.link === 1 && !s.done) cracks.slice(0, Math.floor(s.transfer * 9 + s.overload * 5)).forEach(([x, y, dx, dy]) => {
+        if (s.link === 1) cracks.slice(0, Math.floor(s.transfer * 9 + s.overload * 5)).forEach(([x, y, dx, dy]) => {
           const on = k => [cx + k * w, base + (1 - Math.abs(k)) * w * 0.42];
           const [ax, ay] = on(x * 0.6), [bx, by] = on(x * 0.6 + dx * 0.5);
           g.line(ax, ay - y * h * 0.8, bx, by - clamp(y + dy, 0, 1) * h * 0.8, x < 0 ? 7 : 5);
@@ -684,11 +683,11 @@ const installer = (() => {
           if (y < edgeY + 6) g.rect(x, y, 1, 3, 7);
         }
         const u = s.t - CUES.overload - 0.35;
-        if (u > 0 && s.collapse < 1) for (const d of splash) {
+        if (u > 0) for (const d of splash) {
           const y = base - d.y * u + 130 * u * u;
           if (y < base + 22) g.rect(cx + d.x * u, y, 2, 2, d.y > 100 ? WHITE : 6);
         }
-        if (s.link && !s.done) for (let i = 0; i < 16 * s.link; i++) {
+        if (s.link) for (let i = 0; i < 16 * s.link; i++) {
           const p = (s.t * 0.5 + sag[i % 12] + i / 16) % 1;
           g.dot(32 + i * 10 + Math.sin(p * 9 + i) * 3, 134 - p * 20, 10);
         }
@@ -821,19 +820,18 @@ const installer = (() => {
   function frame(g, jobs, at, t) {
     const job = jobs[at], scene = scenes[job.key], s = { t };
     PHASES.forEach((p, i) => { s[p] = i < PHASES.length - 1 ? clamp((t - CUES[p]) / (CUES[PHASES[i + 1]] - CUES[p])) : clamp((t - CUES[p]) / 0.5); });
-    const phase = PHASES.findLast(p => t >= CUES[p]), since = t - CUES[phase], done = phase === "done";
+    const phase = PHASES.findLast(p => t >= CUES[p]), since = t - CUES[phase];
     const [low, mid, high] = job.values.map(job.format);
     const top = job.values[2] || 1, load = s.transfer ** 3;
     s.value = job.values[1] * load;
     g.clear();
-    g.clip(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
-    if (s.link) scene.draw(g, s);
-    g.unclip();
-    if (done) {
-      g.dim();
+    if (phase === "done") {
       summary(g, jobs, s.done);
       return s;
     }
+    g.clip(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
+    if (s.link) scene.draw(g, s);
+    g.unclip();
     const grit = rng(Math.floor(t * 20));
     for (let i = 0; i < (phase === "boot" ? 160 : 50); i++) g.dot(grit() * W, grit() * H, 1);
     const on = clamp(t / 0.5);
