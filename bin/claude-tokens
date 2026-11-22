@@ -1,0 +1,352 @@
+#!/usr/bin/env python3
+"""Claude Code token usage per repo."""
+
+import argparse
+import json
+import os
+import re
+import sqlite3
+import subprocess
+import sys
+import urllib.request
+from datetime import date, datetime
+from functools import cache
+from pathlib import Path
+
+HOME = Path.home()
+PROJECTS = HOME / ".claude/projects"
+LEDGER = HOME / "Library/Application Support/claude-tokens/ledger.db"
+CONFIG_FILE = HOME / ".config/claude-tokens/config.json"
+REPORT = LEDGER.parent / "report.html"
+TEMPLATE = Path(__file__).resolve().parent.parent / "web/report.html"
+COLUMNS = ["Input", "Cache write", "Cache read", "Output", "Total"]
+
+TYPES = ["Input", "Cache write 5m", "Cache write 1h", "Cache read", "Thinking", "Response", "Output (not split)"]
+
+# USD per million tokens: input, cache write 5m, cache write 1h, cache read, output.
+# From archived copies of platform.claude.com/docs/en/about-claude/pricing, 2026-07-01 to 2026-11-22.
+PRICES = {
+    "claude-fable-5-2": [("", (8, 10, 16, 0.20, 40))],
+    "claude-fable-5-1": [("", (10, 12.50, 20, 0.25, 50))],
+    "claude-fable-5": [("", (10, 12.50, 20, 1, 50))],
+    "claude-opus-5-5": [("", (4, 5, 8, 0.20, 20))],
+    "claude-opus-5": [("", (5, 6.25, 10, 0.50, 25))],
+    "claude-opus-4-8": [("", (5, 6.25, 10, 0.50, 25))],
+    "claude-sonnet-5-5": [("", (2, 2.50, 4, 0.20, 10)), ("2026-10-09", (2, 2.50, 4, 0.10, 10))],
+    "claude-sonnet-5": [("", (2, 2.50, 4, 0.20, 10))],
+    "claude-sonnet-4-6": [("", (3, 3.75, 6, 0.30, 15))],
+    "claude-haiku-5-5": [("", (0.10, 0.125, 0.20, 0.01, 0.50))],
+    "claude-haiku-4-5": [("", (1, 1.25, 2, 0.10, 5))],
+}
+PRICING_URL = "https://platform.claude.com/docs/en/about-claude/pricing.md"
+LONG_PROMPT = {"claude-haiku-5-5": (100_000, 5)}
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS messages (
+  id TEXT PRIMARY KEY, at TEXT, cwd TEXT, model TEXT,
+  input INTEGER, cache_write INTEGER, cache_read INTEGER, output INTEGER,
+  cache_write_1h INTEGER, thinking INTEGER);
+CREATE TABLE IF NOT EXISTS files (
+  path TEXT PRIMARY KEY, inode INTEGER, offset INTEGER);
+CREATE TABLE IF NOT EXISTS prices (
+  model TEXT, since TEXT, input REAL, write_5m REAL, write_1h REAL, read REAL, output REAL,
+  PRIMARY KEY (model, since));
+"""
+
+UPSERT = """
+INSERT INTO messages VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+  input = max(input, excluded.input),
+  cache_write = max(cache_write, excluded.cache_write),
+  cache_read = max(cache_read, excluded.cache_read),
+  output = max(output, excluded.output),
+  cache_write_1h = coalesce(max(cache_write_1h, excluded.cache_write_1h), cache_write_1h, excluded.cache_write_1h),
+  thinking = coalesce(max(thinking, excluded.thinking), thinking, excluded.thinking)
+"""
+
+
+def load_config():
+    config = {"root": None, "groups": {}, "renamed": {}, "gaps": []}
+    try:
+        config.update(json.loads(CONFIG_FILE.read_text()))
+    except FileNotFoundError:
+        pass
+    except ValueError as error:
+        sys.exit(f"{CONFIG_FILE}: {error}")
+    if config["root"]:
+        config["root"] = Path(config["root"]).expanduser()
+    return config
+
+
+CONFIG = load_config()
+
+
+def rows(path, offset):
+    with open(path, "rb") as f:
+        f.seek(offset)
+        for line in f:
+            # A running session may be halfway through writing its last line.
+            if not line.endswith(b"\n"):
+                return
+            offset += len(line)
+            row = None
+            if b'"usage"' in line:
+                try:
+                    row = parse(json.loads(line))
+                except ValueError:
+                    pass
+            yield offset, row
+
+
+def parse(record):
+    if not isinstance(record, dict) or record.get("type") != "assistant":
+        return None
+    message = record.get("message") or {}
+    usage = message.get("usage")
+    if not usage or not message.get("id") or not record.get("cwd"):
+        return None
+    return (
+        message["id"], record.get("timestamp"), record["cwd"], message.get("model"),
+        usage.get("input_tokens") or 0,
+        usage.get("cache_creation_input_tokens") or 0,
+        usage.get("cache_read_input_tokens") or 0,
+        usage.get("output_tokens") or 0,
+        (usage.get("cache_creation") or {}).get("ephemeral_1h_input_tokens"),
+        (usage.get("output_tokens_details") or {}).get("thinking_tokens"),
+    )
+
+
+def migrate(db):
+    known = {row[1] for row in db.execute("PRAGMA table_info(messages)")}
+    for column in ("cache_write_1h", "thinking"):
+        if column not in known:
+            db.execute(f"ALTER TABLE messages ADD COLUMN {column} INTEGER")
+            db.execute("DELETE FROM files")
+
+
+def sync(db):
+    known = {path: (inode, offset) for path, inode, offset in db.execute("SELECT * FROM files")}
+    for path in PROJECTS.rglob("*.jsonl"):
+        try:
+            stat = path.stat()
+            inode, start = known.get(str(path), (stat.st_ino, 0))
+            # claude-history rewrites a transcript when it scrubs an entry.
+            if inode != stat.st_ino or stat.st_size < start:
+                start = 0
+            elif stat.st_size == start:
+                continue
+            end = start
+            for end, row in rows(path, start):
+                if row:
+                    db.execute(UPSERT, row)
+        except FileNotFoundError:
+            continue
+        db.execute("INSERT OR REPLACE INTO files VALUES (?, ?, ?)", (str(path), stat.st_ino, end))
+
+
+@cache
+def repo_of(cwd):
+    root, groups = CONFIG["root"], CONFIG["groups"]
+    if root:
+        try:
+            group, repo = Path(cwd).relative_to(root).parts[:2]
+        except ValueError:
+            return None
+        group = groups.get(group) if groups else group
+    else:
+        group, repo = git_repo(cwd)
+    return (group, CONFIG["renamed"].get(f"{group}/{repo}", repo)) if group else None
+
+
+def git_repo(cwd):
+    # Worktrees in .claude belong to the repo above them, and may be gone by now.
+    path = Path(re.split(r"/\.claude(?:/|$)", cwd)[0])
+    for folder in (path, *path.parents):
+        if folder == HOME:
+            break
+        if (folder / ".git").exists():
+            path = folder
+            break
+    else:
+        return None, None
+    if path == HOME:
+        return None, None
+    return re.sub(rf"^{re.escape(str(HOME))}(?=/|$)", "~", str(path.parent)), path.name
+
+
+def totals(db):
+    repos = {}
+    query = "SELECT cwd, sum(input), sum(cache_write), sum(cache_read), sum(output) FROM messages GROUP BY cwd"
+    for cwd, *counts in db.execute(query):
+        key = repo_of(cwd)
+        if key:
+            counts.append(sum(counts))
+            repos[key] = add(repos.get(key), counts)
+    return repos
+
+
+def add(a, b):
+    return [x + y for x, y in zip(a, b)] if a else list(b)
+
+
+def report(repos):
+    table, overall = [], None
+    for group in list(dict.fromkeys(CONFIG["groups"].values())) or sorted({group for group, _ in repos}):
+        entries = sorted(((r, c) for (g, r), c in repos.items() if g == group), key=lambda e: -e[1][-1])
+        subtotal = None
+        table.append((group, None))
+        for repo, counts in entries:
+            table.append((f"  {repo}", counts))
+            subtotal = add(subtotal, counts)
+        if subtotal:
+            table.append(("  total", subtotal))
+            overall = add(overall, subtotal)
+    if overall:
+        table.append(("total", overall))
+
+    name_width = max((len(name) for name, _ in table), default=0)
+    widths = [max(len(c), len(f"{overall[i]:,}") if overall else 0) for i, c in enumerate(COLUMNS)]
+    print("  ".join([" " * name_width] + [c.rjust(w) for c, w in zip(COLUMNS, widths)]))
+    for name, counts in table:
+        cells = [f"{n:,}".rjust(w) for n, w in zip(counts, widths)] if counts else []
+        print("  ".join([name.ljust(name_width)] + cells).rstrip())
+
+
+def model_id(model):
+    return re.sub(r"-\d{8}$", "", model)
+
+
+def load_prices(db):
+    prices = {model: list(entries) for model, entries in PRICES.items()}
+    for model, since, *rates in db.execute("SELECT * FROM prices ORDER BY since"):
+        prices.setdefault(model, []).append((since, tuple(rates)))
+    return prices
+
+
+def fetch_prices():
+    """Listed rates per model, and the rates for long prompts."""
+    # The site refuses urllib's default user agent.
+    request = urllib.request.Request(PRICING_URL, headers={"User-Agent": "pricing-check/1.0"})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        page = response.read().decode()
+    listed, long = {}, {}
+    for line in page.splitlines():
+        cells = [re.sub(r"<sup>.*?</sup>", "", cell).strip() for cell in line.strip().strip("|").split("|")]
+        name = re.match(r"Claude (\w+) (\d+(?:\.\d+)?)(?![\d.])(.*)", cells[0])
+        rates = tuple(float(m[1]) for m in (re.match(r"\$([\d.]+) / MTok", cell) for cell in cells[1:]) if m)
+        if not name or len(cells) != 6 or len(rates) != 5:
+            continue
+        model = f"claude-{name[1]}-{name[2]}".lower().replace(".", "-")
+        (long if "prompts over" in name[3] else listed).setdefault(model, set()).add(rates)
+    if not listed:
+        raise ValueError("no price table found")
+    return listed, long
+
+
+def check_prices(db):
+    try:
+        listed, long = fetch_prices()
+    except (OSError, ValueError) as error:
+        print(f"Prices not checked: {error}\n", file=sys.stderr)
+        return
+    today, prices, changes = date.today().isoformat(), load_prices(db), []
+    used = {model_id(model) for (model,) in db.execute("SELECT DISTINCT model FROM messages")}
+    for model in sorted(used & listed.keys()):
+        if len(listed[model]) > 1:
+            changes.append(f"{model}: several prices listed, not applied")
+            continue
+        (new,) = listed[model]
+        old = rates_for(prices, model, today, 0)
+        if old != new:
+            since = today if old else ""
+            db.execute("INSERT OR REPLACE INTO prices VALUES (?, ?, ?, ?, ?, ?, ?)", (model, since, *new))
+            changes.append(f"{model}: {old or 'no price'} -> {new}")
+        factor = LONG_PROMPT.get(model, (None, None))[1]
+        expected = {tuple(round(rate * factor, 6) for rate in new)} if factor else set()
+        if long.get(model, set()) != expected:
+            changes.append(f"{model}: long prompt price differs, update LONG_PROMPT")
+    db.commit()
+    print("\n".join(changes or ["Prices are up to date."]) + "\n")
+
+
+def rates_for(prices, model, day, prompt):
+    entries = [rates for since, rates in prices.get(model, []) if since <= day]
+    if not entries:
+        return None
+    limit, factor = LONG_PROMPT.get(model, (None, 1))
+    return [rate * factor for rate in entries[-1]] if limit and prompt > limit else entries[-1]
+
+
+def usage(db):
+    """Tokens and cost per local hour, repo and model."""
+    cells, unpriced, prices = {}, {}, load_prices(db)
+    query = """SELECT id LIKE 'cost-state:%', at, cwd, model, input, cache_write, cache_read, output,
+      coalesce(cache_write_1h, 0), thinking FROM messages WHERE model != '<synthetic>'"""
+    for correction, at, cwd, model, fresh, write, read, output, write_1h, thinking in db.execute(query):
+        when = datetime.fromisoformat(at).astimezone()
+        day = when.date().isoformat()
+        model = model_id(model)
+        tokens = [fresh, write - write_1h, write_1h, read]
+        tokens += [0, 0, output] if thinking is None else [thinking, output - thinking, 0]
+        rates = rates_for(prices, model, day, fresh + write + read)
+        if rates is None:
+            unpriced[model] = unpriced.get(model, 0) + sum(tokens)
+            costs = [0] * len(TYPES)
+        else:
+            costs = [n * rates[min(i, 4)] / 1e6 for i, n in enumerate(tokens)]
+        key = (day, -1 if correction else when.hour, repo_of(cwd) or ("other", "other"), model)
+        cells[key] = add(cells.get(key), tokens + costs)
+    return cells, unpriced
+
+
+def write_report(db):
+    cells, unpriced = usage(db)
+    repos = sorted({key[2] for key in cells})
+    models = sorted({key[3] for key in cells})
+    data = {
+        "types": TYPES,
+        "gaps": CONFIG["gaps"],
+        "unpriced": unpriced,
+        "repos": repos,
+        "models": models,
+        "rows": [
+            [day, hour, repos.index(repo), models.index(model)] + values[: len(TYPES)]
+            + [round(cost, 6) for cost in values[len(TYPES) :]]
+            for (day, hour, repo, model), values in sorted(cells.items())
+        ],
+    }
+    encoded = json.dumps(data, separators=(",", ":")).replace("<", "\\u003c")
+    REPORT.write_text(TEMPLATE.read_text().replace("/*DATA*/null", encoded))
+    subprocess.run(["open", REPORT], check=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="claude-tokens",
+        description=__doc__,
+        epilog="Each run copies new usage from the transcripts into a ledger, which keeps "
+        f"it after Claude Code deletes them: {LEDGER}",
+    )
+    parser.add_argument("--html", action="store_true", help=f"write and open {REPORT}")
+    parser.add_argument("--check-prices", action="store_true", help=f"use today's prices from {PRICING_URL}")
+    args = parser.parse_args()
+    LEDGER.parent.mkdir(parents=True, exist_ok=True)
+    db = sqlite3.connect(LEDGER, timeout=120)
+    db.executescript(SCHEMA)
+    with db:
+        db.execute("BEGIN IMMEDIATE")
+        migrate(db)
+        sync(db)
+    if args.check_prices:
+        check_prices(db)
+    if args.html:
+        write_report(db)
+    else:
+        report(totals(db))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except BrokenPipeError:
+        os._exit(0)
