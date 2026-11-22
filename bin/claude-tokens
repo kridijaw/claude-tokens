@@ -13,6 +13,9 @@ from datetime import date, datetime
 from functools import cache
 from pathlib import Path
 
+if sys.version_info < (3, 11):
+    sys.exit("claude-tokens needs Python 3.11 or newer")
+
 HOME = Path.home()
 PROJECTS = HOME / ".claude/projects"
 LEDGER = HOME / "Library/Application Support/claude-tokens/ledger.db"
