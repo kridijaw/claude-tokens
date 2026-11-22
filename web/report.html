@@ -154,7 +154,7 @@ const METRICS = [
   { key: "energy", label: "Energy", of: kwh => kwh, units: [["Wh", 0.001], ["kWh", 1], ["MWh", 1000]],
     how: [`API cost × ${F.wh_per_usd[1]} Wh per USD`, `Third-party estimates of inference electricity, including data center overhead. The range uses ${F.wh_per_usd[0]} and ${F.wh_per_usd[2]} Wh per USD.`] },
   { key: "co2", label: "CO2", of: co2, units: [["g", 0.001], ["kg", 1], ["t", 1000]],
-    how: [`Energy × ${F.co2_kg_per_kwh} kg per kWh`, "CO2e emitted per kWh on the US average grid."] },
+    how: [`Energy × ${F.co2_kg_per_kwh} kg per kWh`, "CO2 and other greenhouse gases emitted per kWh on the US average grid."] },
   { key: "water", label: "Water", of: kwh => kwh * F.water_l_per_kwh, units: [["mL", 0.001], ["L", 1], ["m³", 1000]],
     how: [`Energy × ${F.water_l_per_kwh} L per kWh`, "On-site cooling plus the water consumed generating the electricity."] },
   { key: "trees", label: "Tree-years", of: kwh => co2(kwh) / F.co2_kg_per_tree_year, units: [["tree-years", 1]],
