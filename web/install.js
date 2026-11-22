@@ -822,8 +822,8 @@ const installer = (() => {
     list(g, jobs, at, s);
     if (phase === "done") {
       const c = 1 + Math.round(s.done * 6);
-      g.center(PANE / 2, 80, "INSTALLATION", c, 2);
-      g.center(PANE / 2, 102, "COMPLETE", c, 2);
+      g.center(PANE / 2, 80, "FOOTPRINT", c, 2);
+      g.center(PANE / 2, 102, "CALCULATED", c, 2);
       return s;
     }
     g.clip(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
@@ -831,7 +831,7 @@ const installer = (() => {
     g.unclip();
     const grit = rng(Math.floor(t * 20));
     for (let i = 0; i < (phase === "boot" ? 160 : 50); i++) g.dot(grit() * PANE, grit() * H, 1);
-    g.text(6, 5, `INSTALLING: ${job.label.toUpperCase()}`.slice(0, Math.round(on * 40)), 7);
+    g.text(6, 5, `CALCULATING: ${job.label.toUpperCase()}`.slice(0, Math.round(on * 40)), 7);
     g.box(VIEW.x - 2, VIEW.y - 2, (VIEW.w + 4) * on, VIEW.h + 4, FRAME);
     if (phase === "boot") {
       for (let i = 0; i < 14; i++) {
@@ -877,7 +877,7 @@ const installer = (() => {
       const clock = still ? end * SPAN + CUES.done + 9 : Math.max(0, now - begin) / 1000;
       const at = clamp(Math.floor((clock - CUES.link) / SPAN), 0, end), t = Math.max(at && CUES.link, clock - at * SPAN);
       const phase = PHASES.findLast(p => t >= CUES[p]), cue = at + phase, scene = scenes[jobs[at].key];
-      const line = { boot: "Online.", ...scene.voice, done: "Installation complete." }[phase];
+      const line = { boot: "Online.", ...scene.voice, done: "Footprint calculated." }[phase];
       if (!still) compose(clock);
       if (cue !== spoken && line) voice.say(line);
       if (cue !== spoken && phase === "collapse") voice.stop();
