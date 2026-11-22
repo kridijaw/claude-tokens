@@ -39,6 +39,13 @@ h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
 .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 #footprint { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 #footprint button { text-align: left; }
+#footprint .label { padding-right: 24px; }
+.item { position: relative; display: grid; }
+.item .tile { display: flex; flex-direction: column; justify-content: flex-start; }
+#footprint .info { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; padding: 6px; border: 0; border-radius: 50%; background: none; color: var(--muted); }
+#footprint .info:hover { color: var(--ink); background: var(--wash); }
+#footprint [aria-pressed="true"] + .info { color: var(--page); }
+.info svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 .tile .label { color: var(--ink-2); font-size: 13px; }
 .tile .value { font-size: 28px; font-weight: 600; line-height: 1.25; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -144,15 +151,24 @@ const span = (row, at) => { let s = 0; for (let i = 0; i < N; i++) s += row[at +
 const F = DATA.footprint;
 const co2 = kwh => kwh * F.co2_kg_per_kwh;
 const METRICS = [
-  { key: "energy", label: "Energy", of: kwh => kwh, units: [["Wh", 0.001], ["kWh", 1], ["MWh", 1000]] },
-  { key: "co2", label: "CO2", of: co2, units: [["g", 0.001], ["kg", 1], ["t", 1000]] },
-  { key: "water", label: "Water", of: kwh => kwh * F.water_l_per_kwh, units: [["mL", 0.001], ["L", 1], ["m³", 1000]] },
-  { key: "trees", label: "Tree-years", of: kwh => co2(kwh) / F.co2_kg_per_tree_year, units: [["tree-years", 1]] },
-  { key: "gha", label: "Global hectares", of: kwh => co2(kwh) / 1000 * F.gha_per_t_co2, units: [["gm²", 0.0001], ["gha", 1]] },
-  { key: "seaice", label: "Arctic sea ice", of: kwh => co2(kwh) / 1000 * F.sea_ice_m2_per_t_co2, units: [["cm²", 0.0001], ["m²", 1]] },
-  { key: "km", label: "Km driven", of: kwh => co2(kwh) / F.co2_kg_per_km, units: [["m", 0.001], ["km", 1]] },
-  { key: "brain", label: "Human brain time", of: kwh => kwh * 1000 / F.brain_w, units: [["min", 1 / 60], ["h", 1], ["days", 24], ["years", 8766]] },
-  { key: "ice", label: "Ice melted", of: kwh => kwh * 3600 / F.ice_kj_per_kg, units: [["g", 0.001], ["kg", 1], ["t", 1000]] },
+  { key: "energy", label: "Energy", of: kwh => kwh, units: [["Wh", 0.001], ["kWh", 1], ["MWh", 1000]],
+    how: [`API cost × ${F.wh_per_usd[1]} Wh per USD`, `Third-party estimates of inference electricity, including data center overhead. The range uses ${F.wh_per_usd[0]} and ${F.wh_per_usd[2]} Wh per USD.`] },
+  { key: "co2", label: "CO2", of: co2, units: [["g", 0.001], ["kg", 1], ["t", 1000]],
+    how: [`Energy × ${F.co2_kg_per_kwh} kg per kWh`, "CO2e emitted per kWh on the US average grid."] },
+  { key: "water", label: "Water", of: kwh => kwh * F.water_l_per_kwh, units: [["mL", 0.001], ["L", 1], ["m³", 1000]],
+    how: [`Energy × ${F.water_l_per_kwh} L per kWh`, "On-site cooling plus the water consumed generating the electricity."] },
+  { key: "trees", label: "Tree-years", of: kwh => co2(kwh) / F.co2_kg_per_tree_year, units: [["tree-years", 1]],
+    how: [`CO2 ÷ ${F.co2_kg_per_tree_year} kg per tree-year`, "CO2 a mature tree absorbs in a year."] },
+  { key: "gha", label: "Global hectares", of: kwh => co2(kwh) / 1000 * F.gha_per_t_co2, units: [["gm²", 0.0001], ["gha", 1]],
+    how: [`CO2 × ${F.gha_per_t_co2} gha per t`, "Biologically productive land of world-average yield needed for a year to absorb the CO2."] },
+  { key: "seaice", label: "Arctic sea ice", of: kwh => co2(kwh) / 1000 * F.sea_ice_m2_per_t_co2, units: [["cm²", 0.0001], ["m²", 1]],
+    how: [`CO2 × ${F.sea_ice_m2_per_t_co2} m² per t`, "September sea ice lost per t of CO2 emitted."] },
+  { key: "km", label: "Km driven", of: kwh => co2(kwh) / F.co2_kg_per_km, units: [["m", 0.001], ["km", 1]],
+    how: [`CO2 ÷ ${F.co2_kg_per_km} kg per km`, "Average new car registered in Europe in 2024."] },
+  { key: "brain", label: "Human brain time", of: kwh => kwh * 1000 / F.brain_w, units: [["min", 1 / 60], ["h", 1], ["days", 24], ["years", 8766]],
+    how: [`Energy ÷ ${F.brain_w} W`, "Power used by a human brain."] },
+  { key: "ice", label: "Ice melted", of: kwh => kwh * 3600 / F.ice_kj_per_kg, units: [["g", 0.001], ["kg", 1], ["t", 1000]],
+    how: [`Energy × 3600 kJ per kWh ÷ ${F.ice_kj_per_kg} kJ per kg`, "Heat needed to melt ice that is already at 0 °C."] },
 ];
 function footprintOf(usd, scenario = 1) {
   const kwh = usd * F.wh_per_usd[scenario] / 1000;
@@ -412,12 +428,18 @@ function renderTiles(rows) {
   const missing = Object.keys(DATA.unpriced);
   if (missing.length) $("tiles").append(el("div", { class: "note" }, "No price for: " + missing.join(", ")));
 }
+function infoButton(label, [formula, note]) {
+  const icon = svg("svg", { viewBox: "0 0 16 16", "aria-hidden": "true" }), button = el("button", { class: "info" }, icon);
+  icon.append(svg("circle", { cx: 8, cy: 8, r: 6.75 }), svg("path", { d: "M8 7.5v3.75M8 4.75v0" }));
+  hover(button, () => tipRows(label, [[formula, ""]], note), `${label}: ${formula}. ${note}`);
+  return button;
+}
 function renderFootprint(rows) {
   const cost = span(total(rows), COST), [low, mid, high] = [0, 1, 2].map(s => footprintOf(cost, s)), held = document.activeElement?.dataset.metric;
-  $("footprint").replaceChildren(...METRICS.map(({ key, label, units }) => el("button", { class: "tile", "data-metric": key, "aria-pressed": state.unit === key, onclick: () => unit(state.unit === key ? "cost" : key) },
+  $("footprint").replaceChildren(...METRICS.map(({ key, label, units, how }) => el("div", { class: "item" }, el("button", { class: "tile", "data-metric": key, "aria-pressed": state.unit === key, onclick: () => unit(state.unit === key ? "cost" : key) },
     el("div", { class: "label" }, label),
     el("div", { class: "value" }, quantity(mid[key], units)),
-    el("div", { class: "note" }, `${quantity(low[key], units)} to ${quantity(high[key], units)}`))));
+    el("div", { class: "note" }, `${quantity(low[key], units)} to ${quantity(high[key], units)}`)), infoButton(label, how))));
   if (held) document.querySelector(`#footprint [data-metric="${held}"]`).focus({ preventScroll: true });
 }
 function renderDetail() {
