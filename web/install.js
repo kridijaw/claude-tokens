@@ -1,7 +1,8 @@
 "use strict";
 const installer = (() => {
-  const W = 320, H = 200;
+  const W = 426, H = 200, PANE = 221;
   const VIEW = { x: 6, y: 16, w: 212, h: 134 };
+  const LIST = { x: 224, y: 4, w: 196, h: 192 };
   const CUES = { boot: 0, link: 1.2, transfer: 3.2, overload: 6.3, collapse: 7.7, done: 8.2 };
   const PHASES = Object.keys(CUES);
   const SPAN = CUES.done - CUES.link;
@@ -29,16 +30,13 @@ const installer = (() => {
     a00e1fhf d11djhjd e00ehvge g0fhhf1e i40c444e n00uhhhh r00mpggg s00fge1u t88s8896 y0hhhf1e ³s2c2s00`
     .split(/\s+/).map(g => [g[0], [...g.slice(1)].map(c => parseInt(c, 32))]));
 
-  // Palette: 0 black, 1-7 phosphor ramp, 8-11 accent ramp, 12 red, 13 dark red, 14 white, 15 frame.
-  const RED = 12, WHITE = 14, FRAME = 15;
-  function palette([main, accent], heat) {
+  // Palette: 0 black, 1-7 phosphor ramp, 8-11 accent ramp, 12 red, 13 white, 14 frame.
+  const RED = 12, WHITE = 13, FRAME = 14;
+  function palette([main, accent]) {
     const shade = (rgb, k) => rgb.map(c => c * k);
     const colors = [[0, 0, 0], ...[0.14, 0.24, 0.36, 0.5, 0.66, 0.83, 1].map(k => shade(main, k)),
-      ...[0.3, 0.52, 0.76, 1].map(k => shade(accent, k)), [255, 64, 40], [110, 20, 14], [240, 244, 232], shade(main, 0.42)];
-    return Uint32Array.from(colors, ([r, g, b]) => {
-      const hot = Math.max(r, g, b), m = heat * 0.75;
-      return (255 << 24 | (b * (1 - m) + hot * 0.12 * m) << 16 | (g * (1 - m) + hot * 0.2 * m) << 8 | (r * (1 - m) + hot * m)) >>> 0;
-    });
+      ...[0.3, 0.52, 0.76, 1].map(k => shade(accent, k)), [255, 64, 40], [240, 244, 232], shade(main, 0.42)];
+    return Uint32Array.from(colors, ([r, g, b]) => (255 << 24 | b << 16 | g << 8 | r) >>> 0);
   }
 
   function screen() {
@@ -88,25 +86,16 @@ const installer = (() => {
           x += 6 * size;
         }
       },
-      center(y, str, c, size = 1) { g.text(Math.round((W - (str.length * 6 - 1) * size) / 2), y, str, c, size); },
-      tear(amount, t) {
-        const rand = rng(Math.floor(t * 8));
-        copy.set(px);
-        for (let y = 0; y < H;) {
-          const tall = 2 + Math.floor(rand() * 14), by = rand() < 0.5 ? Math.round((rand() - 0.5) * 60 * amount) : 0;
-          for (let j = y; j < Math.min(H, y + tall); j++) for (let x = 0; x < W; x++) px[j * W + x] = copy[j * W + (x + by + W) % W];
-          y += tall;
-        }
-      },
+      center(x, y, str, c, size = 1) { g.text(Math.round(x - (str.length * 6 - 1) * size / 2), y, str, c, size); },
       collapse(part) {
         const half = Math.max(0.5, (1 - part) * H / 2);
         copy.set(px);
-        px.fill(0);
+        g.rect(0, 0, PANE, H, 0);
         for (let y = Math.ceil(H / 2 - half); y < H / 2 + half; y++) {
           const from = clamp(Math.round(H / 2 + (y - H / 2) * H / 2 / half), 0, H - 1);
-          for (let x = 0; x < W; x++) px[y * W + x] = copy[from * W + x];
+          for (let x = 0; x < PANE; x++) px[y * W + x] = copy[from * W + x];
         }
-        if (part > 0.6) { const wide = Math.round((1 - part) / 0.4 * W * 0.4); g.rect(W / 2 - wide, H / 2, wide * 2, 1, WHITE); }
+        if (part > 0.6) { const wide = Math.round((1 - part) * PANE); g.rect((PANE >> 1) - wide, H / 2, wide * 2, 1, WHITE); }
       },
       paint(out, colors) { for (let i = 0; i < px.length; i++) out[i] = colors[px[i]]; },
     };
@@ -357,7 +346,7 @@ const installer = (() => {
           if (y > level + 4) g.box(b.x, y, 3, 3, 6);
         }
         const mark = level - s.overload * 24;
-        if (s.link === 1) g.fill([[right + 34, mark], [right + 41, mark - 4], [right + 41, mark + 4]], s.overload ? RED : 11);
+        if (s.link === 1) g.fill([[right + 34, mark], [right + 41, mark - 4], [right + 41, mark + 4]], 11);
         if (s.overload) {
           const flood = 152 - 138 * s.overload ** 1.4;
           for (let x = VIEW.x; x < VIEW.x + VIEW.w; x++) {
@@ -485,7 +474,7 @@ const installer = (() => {
           const [x, y, z] = spot(c.lat, c.lon + turn);
           if (z <= 0.03) continue;
           const claimed = c.land ? s.transfer > c.order : s.overload * 1.1 > c.order;
-          if (claimed) g.rect(x, y, 3, 3, c.land ? (z > 0.5 ? 11 : 9) : z > 0.5 ? RED : 13);
+          if (claimed) g.rect(x, y, 3, 3, c.land ? (z > 0.5 ? 11 : 9) : z > 0.5 ? 7 : 4);
           else if (c.land) g.rect(x, y, 2, 2, z > 0.5 ? 5 : 3);
         }
         if (s.link && s.link < 1) arc(g, p => [scan, p * TAU], 7);
@@ -498,7 +487,6 @@ const installer = (() => {
         for (let t = T.link + 0.1; t < T.overload - 0.3; t += 1.05) ping(t, 988, 0.16);
         a.noise([[T.link, 0], [T.link + 1, 0.06], [T.overload, 0.08], [T.collapse, 0.14]], ["bandpass", [[T.link, 500], [T.transfer, 1800], [T.overload, 700], [T.collapse, 2400]], 6]);
         for (let t = T.transfer, i = 0; t < T.overload; t += 0.19, i++) a.hit(t, 320 + i % 4 * 70, 0.06, 0.4, "bandpass");
-        for (let t = T.overload, i = 0; t < T.collapse - 0.1; t += 0.115, i++) a.blip(t, 988 + i * 60, 0.1, 0.1, "sine");
       },
     };
   }
@@ -548,7 +536,7 @@ const installer = (() => {
         }
         g.revealed();
         const needle = Math.PI + revs(s) * Math.PI;
-        g.line(46, 147, 46 + Math.cos(needle) * 19, 147 + Math.sin(needle) * 19, s.overload ? RED : 11);
+        g.line(46, 147, 46 + Math.cos(needle) * 19, 147 + Math.sin(needle) * 19, 11);
         if (s.link === 1) [...String(Math.floor(s.value)).padStart(6, "0").slice(-6)].forEach((digit, i) => {
           g.box(100 + i * 18, 124, 17, 22, 4);
           g.text(104 + i * 18, 128, digit, 7, 2);
@@ -620,7 +608,7 @@ const installer = (() => {
         let last = 138;
         for (let x = 8; x < 8 + 208 * s.link; x++) {
           const u = x * 0.11 + s.t * 9, y = 138 + size * (Math.sin(u) * 0.5 + Math.sin(u * 2.7) * 0.4 + Math.sin(u * 7.1) * 0.3 * (s.transfer + s.overload));
-          g.line(x, last, x + 1, y, s.overload ? RED : 6);
+          g.line(x, last, x + 1, y, 6);
           last = y;
         }
       },
@@ -637,8 +625,6 @@ const installer = (() => {
           a.blip(t, 1400 + rand() * 2600, 0.012, 0.09);
           t += (0.2 - p * 0.18) * (0.3 + rand() * 1.4);
         }
-        a.osc("sine", [[T.overload, 700], [T.collapse, 2500]], [[T.overload, 0], [T.collapse, 0.16]]);
-        a.osc("sine", [[T.overload, 706], [T.collapse, 2590]], [[T.overload, 0], [T.collapse, 0.12]]);
       },
     };
   }
@@ -764,12 +750,11 @@ const installer = (() => {
     } else T.boot = T.link - 0.4;
     a.hit(T.link, 500, 0.08, 0.5);
     a.hit(T.transfer, 500, 0.08, 0.5);
-    for (let t = T.transfer; t < T.collapse;) {
-      const p = clamp((t - T.transfer) / (T.overload - T.transfer));
+    for (let t = T.transfer; t < T.overload;) {
+      const p = (t - T.transfer) / (T.overload - T.transfer);
       a.blip(t, 1100 + p * 900, 0.014, 0.07);
       t += 0.15 - p * 0.118;
     }
-    for (let t = T.overload, i = 0; t < T.collapse; t += 0.25, i++) a.blip(t, i % 2 ? 415 : 587, 0.24, 0.13);
     scene.score(a, T);
     a.cut(T.collapse);
     a.hit(T.collapse, 200, 0.25, 0.9);
@@ -805,15 +790,24 @@ const installer = (() => {
   }
   speechSynthesis.getVoices();
 
-  function summary(g, jobs, done) {
-    g.center(10, "INSTALLATION COMPLETE", 1 + Math.round(done * 6), 2);
-    jobs.slice(0, Math.floor(done * jobs.length)).forEach((job, i) => {
-      const y = 42 + i * 17, amounts = job.values.map(job.format), [low, mid, high] = amounts;
-      const [[from, unit], , [to]] = amounts.map(v => v.split(" "));
-      const range = amounts.every(v => v.endsWith(` ${unit}`)) ? `${from} TO ${to}` : `${low} TO ${high}`;
-      g.text(8, y, job.label.toUpperCase(), 6);
-      g.text(112, y, mid.replace(` ${job.label.toLowerCase()}`, ""), WHITE);
-      g.text(W - 7 - range.length * 6, y, range, 7);
+  function list(g, jobs, at, s) {
+    const typing = Math.max(0, Math.floor((s.t - CUES.collapse) * 40)), right = LIST.x + LIST.w - 5, slot = i => LIST.y + 7 + i * 19;
+    jobs.slice(0, at + 1).forEach((job, i) => {
+      const value = job.format(job.values[1]).replace(` ${job.label.toLowerCase()}`, ""), typed = str => i < at ? str : str.slice(0, typing);
+      g.text(LIST.x + 6, slot(i), typed(job.label.toUpperCase()), 6);
+      g.text(right - value.length * 6, slot(i), typed(value), WHITE);
+    });
+    if (s.collapse) return;
+    const { values, format } = jobs[at], load = s.transfer ** 3;
+    ["LOW", "MID", "HIGH"].forEach((name, i) => {
+      const y = slot(at) + i * 11, mid = i === 1;
+      if (s.link * 3 <= i) return;
+      g.text(LIST.x + 6, y, name, mid ? 7 : 5);
+      g.box(LIST.x + 34, y - 1, 74, 9, FRAME);
+      g.rect(LIST.x + 36, y + 1, Math.round(70 * values[i] / (values[2] || 1) * load), 5, mid ? 10 : 8);
+      let amount = s.transfer ? format(values[i] * load) : "";
+      if (amount.length > 13) amount = amount.split(" ")[0];
+      g.text(right - amount.length * 6, y, amount, mid ? 11 : 9);
     });
   }
 
@@ -821,46 +815,35 @@ const installer = (() => {
     const job = jobs[at], scene = scenes[job.key], s = { t };
     PHASES.forEach((p, i) => { s[p] = i < PHASES.length - 1 ? clamp((t - CUES[p]) / (CUES[PHASES[i + 1]] - CUES[p])) : clamp((t - CUES[p]) / 0.5); });
     const phase = PHASES.findLast(p => t >= CUES[p]), since = t - CUES[phase];
-    const [low, mid, high] = job.values.map(job.format);
-    const top = job.values[2] || 1, load = s.transfer ** 3;
-    s.value = job.values[1] * load;
+    s.value = job.values[1] * s.transfer ** 3;
     g.clear();
+    const on = clamp((t + at * SPAN) / 0.5);
+    g.box(LIST.x, LIST.y, LIST.w, LIST.h * on, FRAME);
+    list(g, jobs, at, s);
     if (phase === "done") {
-      summary(g, jobs, s.done);
+      const c = 1 + Math.round(s.done * 6);
+      g.center(PANE / 2, 80, "INSTALLATION", c, 2);
+      g.center(PANE / 2, 102, "COMPLETE", c, 2);
       return s;
     }
     g.clip(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
     if (s.link) scene.draw(g, s);
     g.unclip();
     const grit = rng(Math.floor(t * 20));
-    for (let i = 0; i < (phase === "boot" ? 160 : 50); i++) g.dot(grit() * W, grit() * H, 1);
-    const on = clamp(t / 0.5);
+    for (let i = 0; i < (phase === "boot" ? 160 : 50); i++) g.dot(grit() * PANE, grit() * H, 1);
     g.text(6, 5, `INSTALLING: ${job.label.toUpperCase()}`.slice(0, Math.round(on * 40)), 7);
     g.box(VIEW.x - 2, VIEW.y - 2, (VIEW.w + 4) * on, VIEW.h + 4, FRAME);
-    g.box(224, VIEW.y - 2, 90, (VIEW.h + 4) * on, FRAME);
     if (phase === "boot") {
       for (let i = 0; i < 14; i++) {
         const text = Array.from({ length: 5 }, (_, k) => (rng(i * 31 + k)() * 65536 | 0).toString(16).toUpperCase().padStart(4, "0")).join(" ");
         g.text(14, 22 + i * 9, text.slice(0, clamp(Math.floor((s.boot * 22 - i) * 24), 0, 24)), 3);
       }
     }
-    ["LOW", "MID", "HIGH"].forEach((name, i) => {
-      const y = VIEW.y + 6 + i * 44, wild = s.overload ? (rng(Math.floor(t * 9) * 3 + i)() - 0.5) * 0.5 * s.overload : 0;
-      if (s.link * 3 <= i) return;
-      g.text(230, y, name, i === 1 ? 7 : 5);
-      const amount = s.transfer ? job.format(job.values[i] * load) : "";
-      g.text(230, y + 10, amount.length > 13 ? amount.split(" ")[0] : amount, i === 1 ? 11 : 9);
-      g.box(230, y + 21, 78, 9, FRAME);
-      g.rect(232, y + 23, Math.round(74 * clamp(job.values[i] / top * load + wild, 0, 1)), 5, s.overload ? RED : i === 1 ? 10 : 8);
-    });
-    const fight = [low, mid, high][Math.floor(rng(Math.floor(t * 7))() * 3)];
-    const value = s.overload ? fight : s.transfer ? job.format(s.value) : "";
-    g.text(6 + (s.overload ? Math.round((rng(Math.floor(t * 15))() - 0.5) * 8) : 0), 157, value, s.overload ? RED : WHITE, 2);
-    g.text(6, 176, (phase === "boot" ? "POWER ON" : scene.status[phase === "collapse" ? "overload" : phase]).slice(0, Math.floor(since * 40)), s.overload ? RED : 6);
+    g.text(6, 157, s.transfer ? job.format(s.value) : "", WHITE, 2);
+    g.text(6, 176, (phase === "boot" ? "POWER ON" : scene.status[phase === "collapse" ? "overload" : phase]).slice(0, Math.floor(since * 40)), 6);
     g.box(6, 187, 212, 9, FRAME);
-    const cells = Math.round((s.boot * 0.04 + s.link * 0.12 + s.transfer * 0.84 + s.overload ** 2 * 0.47) * 53);
-    for (let i = 0; i < cells; i++) g.rect(8 + i * 4, 189, 3, 5, i >= 53 ? RED : 6);
-    if (s.overload) g.tear(s.overload, t);
+    const cells = Math.round((s.boot * 0.04 + s.link * 0.12 + s.transfer * 0.84) * 52);
+    for (let i = 0; i < cells; i++) g.rect(8 + i * 4, 189, 3, 5, 6);
     if (s.collapse) g.collapse(s.collapse);
     else if (at && phase === "link" && since < 0.25) g.collapse(1 - since / 0.25);
     return s;
@@ -900,7 +883,7 @@ const installer = (() => {
       if (cue !== spoken && phase === "collapse") voice.stop();
       spoken = cue;
       const s = frame(g, jobs, at, t);
-      g.paint(pixels, palette(scene.colors, s.done ? 0 : s.overload));
+      g.paint(pixels, palette(scene.colors));
       pen.putImageData(image, 0, 0);
       if (s.done < 1) request = requestAnimationFrame(tick);
     };
