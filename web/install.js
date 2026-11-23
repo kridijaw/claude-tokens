@@ -792,7 +792,7 @@ const installer = (() => {
     amp.gain.value = 5;
     shape.curve = Float32Array.from({ length: 2049 }, (_, i) => Math.tanh((i / 1024 - 1) * 5));
     shape.oversample = "4x";
-    level.gain.value = 0.22;
+    level.gain.value = 0.14;
     [pickup, amp, shape, eq("peaking", 450, -4), eq("peaking", 2300, 5), eq("lowpass", 4600), level, a.duck].reduce((from, to) => from.connect(to));
     const guitar = (t, len, semis, buffer) => {
       const gate = ctx.createGain();
@@ -809,7 +809,7 @@ const installer = (() => {
     };
     const bass = (t, len, semis) => a.osc("sawtooth", [[t, pitch(semis - 12)]], [[t, 0], [t + 0.004, 0.34], [t + len * 0.7, 0.28], [t + len * 0.95, 0]], ["lowpass", [[t, 1100], [t + 0.12, 420]], 3]);
     const brass = (t, len, semis) => [-8, 8].forEach(cents => a.osc("sawtooth", [[t, pitch(semis + 24 + cents / 100)]],
-      [[t, 0], [t + 0.04, 0.12], [t + len * 0.85, 0.1], [t + len, 0]], ["lowpass", [[t, 500], [t + 0.09, 3200], [t + len, 1500]], 1]));
+      [[t, 0], [t + 0.04, 0.22], [t + len * 0.85, 0.18], [t + len, 0]], ["lowpass", [[t, 500], [t + 0.09, 3200], [t + len, 1500]], 1]));
     const kit = {
       kick(t) {
         a.osc("sine", [[t, 170], [t + 0.05, 62], [t + 0.2, 42]], [[t, 0], [t + 0.002, 0.95], [t + 0.22, 0]]);
@@ -831,7 +831,7 @@ const installer = (() => {
         each(riff, t, (when, len, key) => key === "m" ? guitar(when, len, 0, muted) : guitar(when, len, parseInt(key, 36), open));
         each(part.bass?.[at] ?? riff, t, (when, len, key) => bass(when, len, key === "m" ? 0 : parseInt(key, 36)));
         if (part.lead) each(part.lead[at], t, (when, len, key) => brass(when, len, parseInt(key, 36)));
-        if (part.arp) each(part.arp, t, (when, len, key) => a.osc("square", [[when, pitch(parseInt(key, 36) + 24)]], [[when, 0], [when + 0.004, 0.06], [when + len * 0.9, 0]], ["lowpass", [[when, 2600]], 2]));
+        if (part.arp) each(part.arp, t, (when, len, key) => a.osc("square", [[when, pitch(parseInt(key, 36) + 24)]], [[when, 0], [when + 0.004, 0.11], [when + len * 0.9, 0]], ["lowpass", [[when, 2600]], 2]));
         for (const [drum, row] of Object.entries(at === 3 ? { ...part.drums, ...FILL } : part.drums)) each(row, t, when => kit[drum](when));
         if (!at) crash(t);
       },
