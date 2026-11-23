@@ -53,6 +53,7 @@ h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
 .tile .value { font-size: 28px; font-weight: 600; line-height: 1.25; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 860px) { .two { grid-template-columns: 1fr; } .tiles, #footprint { grid-template-columns: 1fr 1fr; } .toggle { margin-left: 0; } }
+@media (max-width: 860px) and (orientation: portrait) { #footprint .item:has([data-metric="trees"]) { grid-column: span 2; } }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--ink-2); font-size: 12px; margin-bottom: 8px; }
 .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
 svg { display: block; width: 100%; overflow: visible; }
