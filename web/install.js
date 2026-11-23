@@ -1,8 +1,9 @@
 "use strict";
 const installer = (() => {
-  const W = 426, H = 200, PANE = 221;
-  const VIEW = { x: 6, y: 16, w: 212, h: 134 };
-  const LIST = { x: 224, y: 4, w: 196, h: 192 };
+  const PANE = { w: 221, h: 200 }, VIEW = { x: 6, y: 16, w: 212, h: 134 };
+  const WIDE = { w: 426, h: 200, list: { x: 224, y: 4, w: 196, h: 192 } };
+  const TALL = { w: 224, h: 398, list: { x: 4, y: 202, w: 216, h: 192 } };
+  let W, H, LIST;
   const CUES = { boot: 0, link: 1.2, transfer: 3.2, overload: 6.3, collapse: 7.7, done: 8.2 };
   const PHASES = Object.keys(CUES);
   const SPAN = CUES.done - CUES.link;
@@ -892,15 +893,15 @@ const installer = (() => {
     list(g, jobs, at, s);
     if (phase === "done") {
       const c = 1 + Math.round(s.done * 6);
-      g.center(PANE / 2, 80, "FOOTPRINT", c, 2);
-      g.center(PANE / 2, 102, "CALCULATED", c, 2);
+      g.center(PANE.w / 2, 80, "FOOTPRINT", c, 2);
+      g.center(PANE.w / 2, 102, "CALCULATED", c, 2);
       return s;
     }
     g.clip(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
     if (s.link) scene.draw(g, s);
     g.unclip();
     const grit = rng(Math.floor(t * 20));
-    for (let i = 0; i < (phase === "boot" ? 160 : 50); i++) g.dot(grit() * PANE, grit() * H, 1);
+    for (let i = 0; i < (phase === "boot" ? 160 : 50); i++) g.dot(grit() * PANE.w, grit() * PANE.h, 1);
     g.text(6, 5, `CALCULATING: ${job.label.toUpperCase()}`.slice(0, Math.round(on * 40)), 7);
     g.box(VIEW.x - 2, VIEW.y - 2, (VIEW.w + 4) * on, VIEW.h + 4, FRAME);
     if (phase === "boot") {
@@ -926,12 +927,19 @@ const installer = (() => {
       const [low, mid, high] = job.values.map(job.format);
       return `${job.label}: ${mid}, ${low} to ${high}`;
     }).join(". "));
-    canvas.width = W;
-    canvas.height = H;
     dialog.append(canvas);
     document.body.append(dialog);
-    const pen = canvas.getContext("2d"), image = pen.createImageData(W, H), pixels = new Uint32Array(image.data.buffer), g = screen();
-    let ctx, audio, music, speak, start, begin, request, spoken, scored = 0, bar = 0;
+    const pen = canvas.getContext("2d"), portrait = matchMedia("(orientation: portrait)");
+    let image, pixels, g, ctx, audio, music, speak, start, begin, request, spoken, scored = 0, bar = 0;
+    const fit = () => {
+      ({ w: W, h: H, list: LIST } = portrait.matches ? TALL : WIDE);
+      canvas.width = W;
+      canvas.height = H;
+      image = pen.createImageData(W, H);
+      pixels = new Uint32Array(image.data.buffer);
+      g = screen();
+    };
+    fit();
     // Scheduling all footprints up front would hold thousands of audio nodes at once.
     const compose = t => {
       for (; scored <= end && t >= scored * SPAN - 0.5; scored++) {
@@ -947,7 +955,7 @@ const installer = (() => {
         else music.end(start + at);
       }
     };
-    const tick = now => {
+    const draw = now => {
       const clock = still ? end * SPAN + CUES.done + 9 : Math.max(0, now - begin) / 1000;
       const at = clamp(Math.floor((clock - CUES.link) / SPAN), 0, end), t = Math.max(at && CUES.link, clock - at * SPAN);
       const phase = PHASES.findLast(p => t >= CUES[p]), cue = at + phase, scene = scenes[jobs[at].key];
@@ -958,7 +966,19 @@ const installer = (() => {
       const s = frame(g, jobs, at, t);
       g.paint(pixels, palette(scene.colors));
       pen.putImageData(image, 0, 0);
-      if (s.done < 1) request = requestAnimationFrame(tick);
+      return s.done >= 1;
+    };
+    const tick = now => { if (!draw(now)) request = requestAnimationFrame(tick); };
+    const waiting = () => {
+      g.clear();
+      g.center(W / 2, H / 2 - 7, "PRESS ANY KEY", 7, 2);
+      g.paint(pixels, palette(scenes[jobs[0].key].colors));
+      pen.putImageData(image, 0, 0);
+    };
+    portrait.onchange = () => {
+      fit();
+      if (begin === undefined) waiting();
+      else draw(performance.now());
     };
     const run = () => {
       dialog.onkeydown = null;
@@ -974,15 +994,14 @@ const installer = (() => {
     };
     dialog.onclose = () => {
       cancelAnimationFrame(request);
+      portrait.onchange = null;
       ctx?.close();
       dialog.remove();
       document.getElementById("play").focus({ preventScroll: true });
     };
     dialog.showModal();
     if (!wait) return run();
-    g.center(W / 2, 93, "PRESS ANY KEY", 7, 2);
-    g.paint(pixels, palette(scenes[jobs[0].key].colors));
-    pen.putImageData(image, 0, 0);
+    waiting();
     dialog.onclick = run;
     dialog.onkeydown = e => {
       const modifier = e.metaKey || e.ctrlKey || e.altKey || e.key === "Shift";
