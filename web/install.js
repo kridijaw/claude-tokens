@@ -29,7 +29,7 @@ const installer = (() => {
     Mhrllhhh Nhppljjh Oehhhhhe Puhhuggg Qehhhlid Ruhhukih Sfgge11u Tv444444 Uhhhhhhe Vhhhhha4 Whhhllla Xhha4ahh Yhha4444 Zv1248gv
     0ehjlphe 14c4444e 2eh168gv 3v2421he 426aiv22 5vgu11he 668guhhe 7v124888 8ehhehhe 9ehhf12c
     .00000cc ,0000448 -000e000 :0cc0cc0 !4444404 ²ci48u00 c00eggge kggikoki m00qllll hggmphhh
-    a00e1fhf d11djhjd e00ehvge g0fhhf1e i40c444e n00uhhhh r00mpggg s00fge1u t88s8896 y0hhhf1e ³s2c2s00`
+    a00e1fhf d11djhjd e00ehvge g0fhhf1e i40c444e n00uhhhh r00mpggg s00fge1u t88s8896 y0hhhf1e ³s2c2s00 $4fke5u4`
     .split(/\s+/).map(g => [g[0], [...g.slice(1)].map(c => parseInt(c, 32))]));
 
   // Palette: 0 black, 1-7 phosphor ramp, 8-11 accent ramp, 12 red, 13 white, 14 frame.
@@ -679,9 +679,76 @@ const installer = (() => {
     };
   }
 
+  function creditsScene() {
+    const rand = rng(29), ground = 138, cx = 62, cy = 78, R = 36, TALL = 26;
+    const stacks = Array.from({ length: 5 }, (_, i) => ({ x: 132 + i * 19, n: 0.6 + rand() * 0.4, delay: rand() * 0.15 }));
+    const loose = stacks.map(() => Array.from({ length: TALL }, () => ({ vx: (rand() - 0.5) * 110, vy: -30 - rand() * 80 })));
+    const coin = (g, x, y, w, c, edge) => {
+      const o = oval(x, y, w, 3, 12);
+      g.fill(o, c);
+      if (edge) g.poly(o, edge);
+    };
+    return {
+      colors: [[255, 204, 70], [150, 235, 255]],
+      status: { link: "OPENING ACCOUNT", transfer: "RECEIVING CREDIT DATA", overload: "OVERDRAFT" },
+      draw(g, s) {
+        const u = Math.max(0, s.t - CUES.link), angle = 0.8 * u + 0.5 * u * u, k = Math.cos(angle), shake = s.overload * Math.sin(s.t * 51) * 2;
+        const x = cx + shake, face = oval(x, cy, Math.abs(k) * R, R);
+        g.reveal(s.link);
+        for (let i = 0; i < 3; i++) g.line(8, ground + 5 + i * 3, 216, ground + 5 + i * 3, 3 - i);
+        for (const st of stacks) g.poly(oval(st.x, ground, 9, 3.5, 12), 3);
+        g.poly(face, 7);
+        g.revealed();
+        if (s.link < 1) return;
+        g.fill(oval(cx, ground + 1, Math.abs(k) * R * 0.8 + 6, 3), 1);
+        g.fill(oval(x + Math.sin(angle) * 3, cy, Math.abs(k) * R, R), 4);
+        g.fill(face, 2);
+        g.poly(face, s.overload && Math.floor(s.t * 8) % 2 ? RED : 7);
+        g.poly(oval(x, cy, k * R * 0.8, R * 0.8), 5);
+        g.path(oval(x, cy, k * R * 0.42, R * 0.42, 16, 0.8, TAU - 0.8), 7);
+        const fly = s.t - CUES.overload - 0.5;
+        stacks.forEach((st, i) => {
+          const count = clamp(s.transfer * 1.2 - st.delay) * st.n * TALL, whole = Math.floor(count);
+          for (let n = 0; n < whole; n++) {
+            const y = ground - n * 3, wobble = Math.sin(s.t * 18 + i * 2) * s.overload * n * 0.15;
+            if (fly > 0 && n > 1) {
+              const { vx, vy } = loose[i][n], land = (-vy + Math.sqrt(vy * vy + 600 * (ground - y))) / 300, t = Math.min(fly, land);
+              coin(g, st.x + wobble + vx * t, y + vy * t + 150 * t * t, 8, n % 2 ? 5 : 4, 6);
+            } else coin(g, st.x + wobble, y, 8, n % 2 ? 5 : 4, n === whole - 1 ? 7 : 0);
+          }
+          const drop = count - whole;
+          if (s.transfer && s.transfer < 1 && whole < TALL) coin(g, st.x, 10 + (ground - whole * 3 - 10) * drop * drop, Math.abs(Math.cos(s.t * 11 + i)) * 8 + 1, 9, 11);
+        });
+        const spark = rng(Math.floor(s.t * 6));
+        for (let i = 0; i < s.transfer * 8 + s.overload * 12; i++) {
+          const a = spark() * TAU, r = R + 4 + spark() * 14, px = x + Math.cos(a) * r, py = cy + Math.sin(a) * r;
+          g.line(px - 2, py, px + 2, py, 11);
+          g.line(px, py - 2, px, py + 2, 11);
+        }
+      },
+      score(a, T) {
+        const ting = (t, f, level) => {
+          a.osc("sine", [[t, f]], [[t, 0], [t + 0.003, level], [t + 0.35, 0]]);
+          a.osc("sine", [[t, f * 2.76]], [[t, 0], [t + 0.002, level * 0.4], [t + 0.12, 0]]);
+        };
+        for (const at of [0, 0.22]) a.hit(T.link + at, 2400, 0.05, 0.4, "bandpass");
+        ting(T.link + 0.5, 1568, 0.18);
+        const rand = rng(41);
+        for (let t = T.transfer; t < T.overload;) {
+          const p = (t - T.transfer) / (T.overload - T.transfer);
+          ting(t, 1800 + rand() * 900 + p * 600, 0.08);
+          a.hit(t, 3200, 0.02, 0.2, "bandpass");
+          t += (0.3 - p * 0.22) * (0.6 + rand() * 0.8);
+        }
+        for (let t = T.overload; t < T.collapse - 0.1; t += 0.24) a.osc("square", [[t, 440], [t + 0.12, 370]], [[t, 0], [t + 0.01, 0.12], [t + 0.2, 0]], ["lowpass", [[t, 1800]], 1]);
+        for (let n = 0; n < 24; n++) ting(T.overload + 0.5 + rand() * 0.9, 1400 + rand() * 1600, 0.05);
+      },
+    };
+  }
+
   const scenes = {
     energy: energyScene(), co2: co2Scene(), water: waterScene(), trees: treesScene(), gha: landScene(),
-    seaice: seaIceScene(), km: roadScene(), brain: brainScene(), ice: iceScene(),
+    seaice: seaIceScene(), km: roadScene(), brain: brainScene(), ice: iceScene(), credits: creditsScene(),
   };
 
   const ramp = (param, points) => points.forEach(([t, v], i) => i ? param.linearRampToValueAtTime(v, t) : param.setValueAtTime(v, t));
@@ -747,7 +814,7 @@ const installer = (() => {
     [196, 293.66, 440].forEach((f, i) => a.blip(t + 0.08 + i * 0.13, f, 1.6 - i * 0.13, 0.16, "triangle"));
   }
 
-  // At 120 BPM every link, transfer and collapse cue lands on a beat, and this pickup puts the last "done" cue on a bar line.
+  // At 120 BPM every link, transfer and collapse cue lands on a beat.
   const BEAT = 0.5, BAR = BEAT * 4, STEP = BEAT / 4, PICKUP = CUES.link - BEAT * 2;
   const RIFF = ["mmm.mm.mm.m.1---", "mmm.mm.mm.6-5-3-", "mmm.mm.mm.m.1---", "mmm.mm.m8---6---"];
   const SLOW = ["0-------3---1---", "0-----mm6-5-3-1-", "0-------8---6---", "5---3---1--mmmmm"];
@@ -862,23 +929,25 @@ const installer = (() => {
     };
   }
 
+  const main = values => values[values.length >> 1];
   function list(g, jobs, at, s) {
     const typing = Math.max(0, Math.floor((s.t - CUES.collapse) * 40)), right = LIST.x + LIST.w - 5, slot = i => LIST.y + 7 + i * 19;
     jobs.slice(0, at + 1).forEach((job, i) => {
-      const value = job.format(job.values[1]).replace(` ${job.label.toLowerCase()}`, ""), typed = str => i < at ? str : str.slice(0, typing);
+      const value = job.format(main(job.values)).replace(` ${job.label.toLowerCase()}`, ""), typed = str => i < at ? str : str.slice(0, typing);
       g.text(LIST.x + 6, slot(i), typed(job.label.toUpperCase()), 6);
       g.text(right - value.length * 6, slot(i), typed(value), WHITE);
     });
     if (s.collapse) return;
-    const { values, format } = jobs[at], load = s.transfer ** 3;
-    ["LOW", "MID", "HIGH"].forEach((name, i) => {
-      const y = slot(at) + i * 11, mid = i === 1;
-      if (s.link * 3 <= i) return;
+    const { values, format } = jobs[at], load = s.transfer ** 3, names = values.length > 1 ? ["LOW", "MID", "HIGH"] : ["TOTAL"];
+    const bar = LIST.x + 10 + 6 * Math.max(...names.map(name => name.length));
+    names.forEach((name, i) => {
+      const y = slot(at) + i * 11, mid = i === values.length >> 1;
+      if (s.link * names.length <= i) return;
       g.text(LIST.x + 6, y, name, mid ? 7 : 5);
-      g.box(LIST.x + 34, y - 1, 74, 9, FRAME);
-      g.rect(LIST.x + 36, y + 1, Math.round(70 * values[i] / (values[2] || 1) * load), 5, mid ? 10 : 8);
+      g.box(bar, y - 1, 74, 9, FRAME);
+      g.rect(bar + 2, y + 1, Math.round(70 * values[i] / (values.at(-1) || 1) * load), 5, mid ? 10 : 8);
       let amount = s.transfer ? format(values[i] * load) : "";
-      if (amount.length > 13) amount = amount.split(" ")[0];
+      if (amount.length > 13 || right - amount.length * 6 < bar + 76) amount = amount.split(" ")[0];
       g.text(right - amount.length * 6, y, amount, mid ? 11 : 9);
     });
   }
@@ -887,7 +956,7 @@ const installer = (() => {
     const job = jobs[at], scene = scenes[job.key], s = { t };
     PHASES.forEach((p, i) => { s[p] = i < PHASES.length - 1 ? clamp((t - CUES[p]) / (CUES[PHASES[i + 1]] - CUES[p])) : clamp((t - CUES[p]) / 0.5); });
     const phase = PHASES.findLast(p => t >= CUES[p]), since = t - CUES[phase];
-    s.value = job.values[1] * s.transfer ** 3;
+    s.value = main(job.values) * s.transfer ** 3;
     g.clear();
     const on = clamp((t + at * SPAN) / 0.5);
     g.box(LIST.x, LIST.y, LIST.w, LIST.h * on, FRAME);
@@ -927,7 +996,7 @@ const installer = (() => {
     dialog.id = "install";
     dialog.setAttribute("aria-label", jobs.map(job => {
       const [low, mid, high] = job.values.map(job.format);
-      return `${job.label}: ${mid}, ${low} to ${high}`;
+      return high ? `${job.label}: ${mid}, ${low} to ${high}` : `${job.label}: ${low}`;
     }).join(". "));
     dialog.append(canvas);
     document.body.append(dialog);
@@ -942,15 +1011,17 @@ const installer = (() => {
       g = screen();
     };
     fit();
+    // Shifting the pickup puts the last "done" cue on a bar line.
+    const pickup = PICKUP + BEAT * (Math.round((end * SPAN + CUES.done - PICKUP) / BEAT) % 4);
     // Scheduling all footprints up front would hold thousands of audio nodes at once.
     const compose = t => {
       for (; scored <= end && t >= scored * SPAN - 0.5; scored++) {
         score(audio, scenes[jobs[scored].key], start + scored * SPAN, !scored);
         if (scored === end) finale(audio, start + end * SPAN + CUES.done);
       }
-      const bars = Math.round((end * SPAN + CUES.done - PICKUP) / BAR);
-      for (; bar <= bars && t >= PICKUP + (bar - 1) * BAR - 0.5; bar++) {
-        const at = PICKUP + bar * BAR;
+      const bars = Math.round((end * SPAN + CUES.done - pickup) / BAR);
+      for (; bar <= bars && t >= pickup + (bar - 1) * BAR - 0.5; bar++) {
+        const at = pickup + bar * BAR;
         // Bars missed while the tab was hidden would otherwise all sound at once.
         if (at < t) continue;
         if (bar < bars) music.bar(bar, start + at);
