@@ -113,7 +113,7 @@ const installer = (() => {
     const ring = (g, r, z, c, n = 28) => g.poly(Array.from({ length: n }, (_, i) => project(Math.cos(i / n * TAU) * r, Math.sin(i / n * TAU) * r, z)), c);
     return {
       colors: [[96, 255, 120], [255, 176, 48]],
-      status: { link: "LINKING POWER GRID", transfer: "RECEIVING ENERGY DATA", overload: "OVERLOAD" },
+      status: { link: "LINKING POWER GRID", transfer: "RECEIVING ENERGY DATA", overload: "ENERGY DATA RECEIVED" },
       draw(g, s) {
         const u = Math.max(0, s.t - CUES.link), angle = 1.1 * u * u, shake = s.overload * Math.sin(s.t * 47) * 1.5;
         g.reveal(s.link);
@@ -194,7 +194,7 @@ const installer = (() => {
     floes.sort((a, b) => a.rank - b.rank).forEach((f, i) => { f.order = i / (floes.length - 1); });
     return {
       colors: [[112, 226, 255], [96, 255, 170]],
-      status: { link: "LINKING SATELLITE", transfer: "RECEIVING SEA ICE DATA", overload: "SIGNAL BREAKING UP" },
+      status: { link: "LINKING SATELLITE", transfer: "RECEIVING SEA ICE DATA", overload: "SEA ICE DATA RECEIVED" },
       draw(g, s) {
         const turn = s.t * 0.05, cos = Math.cos(turn), sin = Math.sin(turn);
         const spot = (x, y) => [cx + (x * cos - y * sin) * 1.18, cy + (x * sin + y * cos) * 0.9];
@@ -257,7 +257,7 @@ const installer = (() => {
     });
     return {
       colors: [[214, 222, 150], [255, 120, 70]],
-      status: { link: "SEALING JAR", transfer: "RECEIVING CO2 DATA", overload: "CONTAINMENT BREACH" },
+      status: { link: "SEALING JAR", transfer: "RECEIVING CO2 DATA", overload: "CO2 DATA RECEIVED" },
       draw(g, s) {
         g.reveal(s.link);
         g.path(oval(cx, 72, r, 44, 24, Math.PI, TAU), 5);
@@ -306,7 +306,7 @@ const installer = (() => {
     const bubbles = Array.from({ length: 26 }, () => ({ x: left + 6 + rand() * (right - left - 12), v: 0.3 + rand() * 0.5, p: rand() }));
     return {
       colors: [[90, 190, 255], [120, 255, 226]],
-      status: { link: "OPENING VALVE", transfer: "RECEIVING WATER DATA", overload: "OVERFLOW" },
+      status: { link: "OPENING VALVE", transfer: "RECEIVING WATER DATA", overload: "WATER DATA RECEIVED" },
       draw(g, s) {
         const level = floor - (floor - top) * s.transfer, wave = (x, size) => Math.sin(x * 0.13 + s.t * 5) * size + Math.sin(x * 0.31 - s.t * 3.4) * size * 0.5;
         if (s.transfer) for (let x = left + 1; x < right; x++) {
@@ -367,7 +367,7 @@ const installer = (() => {
     const wobble = Array.from({ length: 28 }, () => rand() * 0.16);
     return {
       colors: [[130, 255, 96], [255, 190, 110]],
-      status: { link: "LOCATING TREE", transfer: "RECEIVING TREE DATA", overload: "TIMBER" },
+      status: { link: "LOCATING TREE", transfer: "RECEIVING TREE DATA", overload: "TREE DATA RECEIVED" },
       draw(g, s) {
         g.reveal(s.link);
         for (let i = 0; i < 5; i++) g.line(6, ground + i * i * 0.7, 218, ground + i * i * 0.7, 3 - Math.min(2, i));
@@ -447,7 +447,7 @@ const installer = (() => {
     };
     return {
       colors: [[110, 255, 190], [255, 216, 70]],
-      status: { link: "SCANNING GLOBE", transfer: "RECEIVING LAND DATA", overload: "OUT OF LAND" },
+      status: { link: "SCANNING GLOBE", transfer: "RECEIVING LAND DATA", overload: "LAND DATA RECEIVED" },
       draw(g, s) {
         const turn = s.t * 0.45, scan = 1.5 - s.link * 3;
         g.reveal(s.link * 1.5);
@@ -489,7 +489,7 @@ const installer = (() => {
     };
     return {
       colors: [[255, 180, 70], [110, 230, 255]],
-      status: { link: "STARTING ENGINE", transfer: "RECEIVING DISTANCE DATA", overload: "REDLINE" },
+      status: { link: "STARTING ENGINE", transfer: "RECEIVING DISTANCE DATA", overload: "DISTANCE DATA RECEIVED" },
       draw(g, s) {
         const u = Math.max(0, s.t - CUES.transfer), rough = s.overload * (1 - s.collapse) * 3;
         const travel = u < 3.1 ? 1.15 * u * u : 11.05 + 7.1 * (u - 3.1) + 2 * (u - 3.1) ** 2;
@@ -561,7 +561,7 @@ const installer = (() => {
     });
     return {
       colors: [[255, 134, 190], [255, 240, 140]],
-      status: { link: "LINKING BRAIN", transfer: "RECEIVING BRAIN DATA", overload: "OVERTHINKING" },
+      status: { link: "LINKING BRAIN", transfer: "RECEIVING BRAIN DATA", overload: "BRAIN DATA RECEIVED" },
       draw(g, s) {
         const yaw = Math.PI / 2 + Math.sin(s.t * 0.9) * 0.75, cos = Math.cos(yaw), sin = Math.sin(yaw);
         const spot = ([x, y, z]) => {
@@ -621,7 +621,7 @@ const installer = (() => {
     const cracks = Array.from({ length: 14 }, () => [(rand() - 0.5) * 1.5, rand(), (rand() - 0.5) * 0.5, (rand() - 0.5) * 0.4]);
     return {
       colors: [[170, 225, 255], [255, 130, 60]],
-      status: { link: "HEATING ICE", transfer: "RECEIVING ICE DATA", overload: "MELTDOWN" },
+      status: { link: "HEATING ICE", transfer: "RECEIVING ICE DATA", overload: "ICE DATA RECEIVED" },
       draw(g, s) {
         const fall = clamp(s.overload * 1.6 - 0.3), h = 76 * (1 - 0.55 * s.transfer) * (1 - fall * 0.96), w = 44 * (1 - 0.22 * s.transfer) * (1 + fall * 0.3);
         const puddle = oval(cx, base + 12, 30 + s.transfer * 44 + fall * 20, 8 + s.transfer * 7 + fall * 3);
@@ -690,7 +690,7 @@ const installer = (() => {
     };
     return {
       colors: [[255, 204, 70], [150, 235, 255]],
-      status: { link: "OPENING ACCOUNT", transfer: "RECEIVING CREDIT DATA", overload: "OVERDRAFT" },
+      status: { link: "OPENING ACCOUNT", transfer: "RECEIVING CREDIT DATA", overload: "CREDIT DATA RECEIVED" },
       draw(g, s) {
         const u = Math.max(0, s.t - CUES.link), angle = 0.8 * u + 0.5 * u * u, k = Math.cos(angle), shake = s.overload * Math.sin(s.t * 51) * 2;
         const x = cx + shake, face = oval(x, cy, Math.abs(k) * R, R);
