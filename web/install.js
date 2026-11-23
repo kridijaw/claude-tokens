@@ -4,6 +4,7 @@ const installer = (() => {
   const WIDE = { w: 426, h: 200, list: { x: 224, y: 4, w: 196, h: 192 } };
   const TALL = { w: 224, h: 398, list: { x: 4, y: 202, w: 216, h: 192 } };
   let W, H, LIST;
+  const touch = matchMedia("(pointer: coarse)");
   const CUES = { boot: 0, link: 1.2, transfer: 3.2, overload: 6.3, collapse: 7.7, done: 8.2 };
   const PHASES = Object.keys(CUES);
   const SPAN = CUES.done - CUES.link;
@@ -895,6 +896,7 @@ const installer = (() => {
       const c = 1 + Math.round(s.done * 6);
       g.center(PANE.w / 2, 80, "FOOTPRINT", c, 2);
       g.center(PANE.w / 2, 102, "CALCULATED", c, 2);
+      if (s.done >= 1 && touch.matches) g.center(PANE.w / 2, 140, "TAP TO CONTINUE", 7);
       return s;
     }
     g.clip(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
@@ -930,7 +932,7 @@ const installer = (() => {
     dialog.append(canvas);
     document.body.append(dialog);
     const pen = canvas.getContext("2d"), portrait = matchMedia("(orientation: portrait)");
-    let image, pixels, g, ctx, audio, music, speak, start, begin, request, spoken, scored = 0, bar = 0;
+    let image, pixels, g, hold, finished, ctx, audio, music, speak, start, begin, request, spoken, scored = 0, bar = 0;
     const fit = () => {
       ({ w: W, h: H, list: LIST } = portrait.matches ? TALL : WIDE);
       canvas.width = W;
@@ -968,7 +970,7 @@ const installer = (() => {
       pen.putImageData(image, 0, 0);
       return s.done >= 1;
     };
-    const tick = now => { if (!draw(now)) request = requestAnimationFrame(tick); };
+    const tick = now => { if (!(finished = draw(now))) request = requestAnimationFrame(tick); };
     const waiting = () => {
       g.clear();
       g.center(W / 2, H / 2 - 7, "PRESS ANY KEY", 7, 2);
@@ -982,7 +984,10 @@ const installer = (() => {
     };
     const run = () => {
       dialog.onkeydown = null;
-      dialog.onclick = () => dialog.close();
+      dialog.onclick = () => (finished || !touch.matches) && dialog.close();
+      dialog.onpointerdown = () => { if (touch.matches && !finished) hold = setTimeout(() => dialog.close(), 600); };
+      dialog.onpointerup = dialog.onpointercancel = () => clearTimeout(hold);
+      if (touch.matches) dialog.requestFullscreen?.().catch(() => {});
       ctx = new AudioContext();
       audio = synth(ctx);
       music = band(ctx);
@@ -994,11 +999,14 @@ const installer = (() => {
     };
     dialog.onclose = () => {
       cancelAnimationFrame(request);
+      clearTimeout(hold);
       portrait.onchange = null;
+      if (document.fullscreenElement) document.exitFullscreen();
       ctx?.close();
       dialog.remove();
       document.getElementById("play").focus({ preventScroll: true });
     };
+    dialog.oncontextmenu = e => e.preventDefault();
     dialog.showModal();
     if (!wait) return run();
     waiting();
