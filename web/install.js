@@ -740,7 +740,6 @@ const installer = (() => {
           a.hit(t, 3200, 0.02, 0.2, "bandpass");
           t += (0.3 - p * 0.22) * (0.6 + rand() * 0.8);
         }
-        for (let t = T.overload; t < T.collapse - 0.1; t += 0.24) a.osc("square", [[t, 440], [t + 0.12, 370]], [[t, 0], [t + 0.01, 0.12], [t + 0.2, 0]], ["lowpass", [[t, 1800]], 1]);
         for (let n = 0; n < 24; n++) ting(T.overload + 0.5 + rand() * 0.9, 1400 + rand() * 1600, 0.05);
       },
     };
