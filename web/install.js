@@ -682,6 +682,7 @@ const installer = (() => {
     seaice: seaIceScene(), km: roadScene(), brain: brainScene(), ice: iceScene(),
   };
 
+  const ramp = (param, points) => points.forEach(([t, v], i) => i ? param.linearRampToValueAtTime(v, t) : param.setValueAtTime(v, t));
   function synth(ctx) {
     const comp = ctx.createDynamicsCompressor(), crush = ctx.createWaveShaper(), out = ctx.createGain(), duck = ctx.createGain();
     crush.curve = Float32Array.from({ length: 4097 }, (_, i) => Math.round((i / 2048 - 1) * 90) / 90);
@@ -691,7 +692,6 @@ const installer = (() => {
     for (let i = 0; i < data.length; i++) data[i] = rand() * 2 - 1;
     let bus = ctx.createGain();
     bus.connect(duck);
-    const ramp = (param, points) => points.forEach(([t, v], i) => i ? param.linearRampToValueAtTime(v, t) : param.setValueAtTime(v, t));
     const route = (source, gains, filter) => {
       const gain = ctx.createGain();
       gain.gain.value = 0;
@@ -743,6 +743,105 @@ const installer = (() => {
   function finale(a, t) {
     a.hit(t, 250, 0.15, 0.6);
     [196, 293.66, 440].forEach((f, i) => a.blip(t + 0.08 + i * 0.13, f, 1.6 - i * 0.13, 0.16, "triangle"));
+  }
+
+  // At 120 BPM every link, transfer and collapse cue lands on a beat, and this pickup puts the last "done" cue on a bar line.
+  const BEAT = 0.5, BAR = BEAT * 4, STEP = BEAT / 4, PICKUP = CUES.link - BEAT * 2;
+  const RIFF = ["mmm.mm.mm.m.1---", "mmm.mm.mm.6-5-3-", "mmm.mm.mm.m.1---", "mmm.mm.m8---6---"];
+  const SLOW = ["0-------3---1---", "0-----mm6-5-3-1-", "0-------8---6---", "5---3---1--mmmmm"];
+  const PULSE = Array(4).fill("0.00.00.00.0.0.0");
+  const MARCH = { kick: "x...x...x...x.x.", snare: "....x.......x..x", hat: "x.x.x.x.x.x.x.x.", clank: "......x.......x." };
+  const HALF = { kick: "x......x..x.....", snare: "........x.......", hat: "x...x...x...x..." };
+  const SPARSE = { kick: "x...x...x...x...", hat: "..x...x...x...x.", clank: "...x......x....." };
+  const FILL = { kick: "x...x...x...x...", snare: "....x...x.xxxxxx" };
+  const CALL = ["0-------3-----1-", "0-----------....", "0-------6-----5-", "3-------1-------"];
+  const ANSWER = ["c---------a-8---", "7-----------....", "8---------7-5---", "3---5---1-------"];
+  const ARP = "0c7c3c7c0c8c3c7c";
+  const FORM = [
+    { guitar: ["", "", ...RIFF.slice(0, 2)], bass: PULSE, drums: SPARSE },
+    { guitar: RIFF, drums: MARCH },
+    { guitar: RIFF, drums: MARCH, lead: CALL },
+    { guitar: SLOW, drums: HALF, arp: ARP },
+    { guitar: ["0-------", "", "1-------", ""], bass: PULSE, drums: SPARSE, arp: ARP },
+    { guitar: RIFF, drums: MARCH, lead: ANSWER },
+    { guitar: SLOW, drums: HALF, lead: CALL, arp: ARP },
+    { guitar: [...RIFF.slice(0, 3), "mmm.mm.mm.m.3---"], drums: MARCH, lead: ANSWER, arp: ARP },
+  ];
+  function band(ctx) {
+    const a = synth(ctx), D2 = 73.416, LENGTH = 600;
+    const pitch = semis => D2 * 2 ** (semis / 12);
+    const string = damp => {
+      const buffer = ctx.createBuffer(2, ctx.sampleRate * 3, ctx.sampleRate);
+      for (let side = 0; side < 2; side++) {
+        const out = buffer.getChannelData(side), rand = rng(7 + side), n = LENGTH + side;
+        for (let i = 0; i < out.length; i++) out[i] = i <= n ? rand() * 2 - 1 : damp * (out[i - n] + out[i - n - 1]) / 2;
+      }
+      return buffer;
+    };
+    const open = string(0.997), muted = string(0.86), amp = ctx.createGain();
+    const shape = ctx.createWaveShaper(), level = ctx.createGain();
+    const eq = (type, freq, gain = 0, q = 0.8) => {
+      const f = ctx.createBiquadFilter();
+      f.type = type;
+      f.frequency.value = freq;
+      f.gain.value = gain;
+      f.Q.value = q;
+      return f;
+    };
+    const pickup = eq("highpass", 80);
+    amp.gain.value = 5;
+    shape.curve = Float32Array.from({ length: 2049 }, (_, i) => Math.tanh((i / 1024 - 1) * 5));
+    shape.oversample = "4x";
+    level.gain.value = 0.22;
+    [pickup, amp, shape, eq("peaking", 450, -4), eq("peaking", 2300, 5), eq("lowpass", 4600), level, a.duck].reduce((from, to) => from.connect(to));
+    const guitar = (t, len, semis, buffer) => {
+      const gate = ctx.createGain();
+      ramp(gate.gain, [[t, 0], [t + 0.003, 1], [t + len - 0.02, 1], [t + len, 0]]);
+      gate.connect(pickup);
+      for (const up of [0, 7, 12]) {
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.playbackRate.value = pitch(semis + up) * (LENGTH + 0.5) / ctx.sampleRate;
+        source.connect(gate);
+        source.start(t);
+        source.stop(t + len);
+      }
+    };
+    const bass = (t, len, semis) => a.osc("sawtooth", [[t, pitch(semis - 12)]], [[t, 0], [t + 0.004, 0.34], [t + len * 0.7, 0.28], [t + len * 0.95, 0]], ["lowpass", [[t, 1100], [t + 0.12, 420]], 3]);
+    const brass = (t, len, semis) => [-8, 8].forEach(cents => a.osc("sawtooth", [[t, pitch(semis + 24 + cents / 100)]],
+      [[t, 0], [t + 0.04, 0.12], [t + len * 0.85, 0.1], [t + len, 0]], ["lowpass", [[t, 500], [t + 0.09, 3200], [t + len, 1500]], 1]));
+    const kit = {
+      kick(t) {
+        a.osc("sine", [[t, 170], [t + 0.05, 62], [t + 0.2, 42]], [[t, 0], [t + 0.002, 0.95], [t + 0.22, 0]]);
+        a.hit(t, 3500, 0.014, 0.5);
+      },
+      snare(t) {
+        a.osc("triangle", [[t, 250], [t + 0.1, 170]], [[t, 0], [t + 0.002, 0.5], [t + 0.12, 0]]);
+        a.noise([[t, 0], [t + 0.002, 0.6], [t + 0.13, 0.3], [t + 0.19, 0]], ["bandpass", [[t, 2200]], 0.6]);
+      },
+      hat(t) { a.hit(t, 7500, 0.045, 0.16, "highpass"); },
+      clank(t) { for (const f of [523, 1187, 1730, 2489]) a.osc("square", [[t, f]], [[t, 0], [t + 0.002, 0.07], [t + 0.16, 0]], ["bandpass", [[t, 2400]], 1]); },
+    };
+    const crash = t => a.noise([[t, 0], [t + 0.003, 0.3], [t + 0.3, 0.1], [t + 1.4, 0]], ["highpass", [[t, 5000]], 0.7]);
+    a.duck.gain.value = 0.26;
+    const each = (row, t, fn) => { for (const m of row.matchAll(/([^.-])-*/g)) fn(t + m.index * STEP, m[0].length * STEP, m[1]); };
+    return {
+      bar(n, t) {
+        const part = FORM[(n >> 2) % FORM.length], at = n % 4, riff = part.guitar[at];
+        each(riff, t, (when, len, key) => key === "m" ? guitar(when, len, 0, muted) : guitar(when, len, parseInt(key, 36), open));
+        each(part.bass?.[at] ?? riff, t, (when, len, key) => bass(when, len, key === "m" ? 0 : parseInt(key, 36)));
+        if (part.lead) each(part.lead[at], t, (when, len, key) => brass(when, len, parseInt(key, 36)));
+        if (part.arp) each(part.arp, t, (when, len, key) => a.osc("square", [[when, pitch(parseInt(key, 36) + 24)]], [[when, 0], [when + 0.004, 0.06], [when + len * 0.9, 0]], ["lowpass", [[when, 2600]], 2]));
+        for (const [drum, row] of Object.entries(at === 3 ? { ...part.drums, ...FILL } : part.drums)) each(row, t, when => kit[drum](when));
+        if (!at) crash(t);
+      },
+      end(t) {
+        guitar(t, 3, 5, open);
+        bass(t, 2.5, 5);
+        kit.kick(t);
+        crash(t);
+      },
+    };
   }
 
   const CLIPS = /*VOICE*/{};
@@ -832,12 +931,20 @@ const installer = (() => {
     dialog.append(canvas);
     document.body.append(dialog);
     const pen = canvas.getContext("2d"), image = pen.createImageData(W, H), pixels = new Uint32Array(image.data.buffer), g = screen();
-    let ctx, audio, speak, start, begin, request, spoken, scored = 0;
+    let ctx, audio, music, speak, start, begin, request, spoken, scored = 0, bar = 0;
     // Scheduling all footprints up front would hold thousands of audio nodes at once.
     const compose = t => {
       for (; scored <= end && t >= scored * SPAN - 0.5; scored++) {
         score(audio, scenes[jobs[scored].key], start + scored * SPAN, !scored);
         if (scored === end) finale(audio, start + end * SPAN + CUES.done);
+      }
+      const bars = Math.round((end * SPAN + CUES.done - PICKUP) / BAR);
+      for (; bar <= bars && t >= PICKUP + (bar - 1) * BAR - 0.5; bar++) {
+        const at = PICKUP + bar * BAR;
+        // Bars missed while the tab was hidden would otherwise all sound at once.
+        if (at < t) continue;
+        if (bar < bars) music.bar(bar, start + at);
+        else music.end(start + at);
       }
     };
     const tick = now => {
@@ -858,6 +965,7 @@ const installer = (() => {
       dialog.onclick = () => dialog.close();
       ctx = new AudioContext();
       audio = synth(ctx);
+      music = band(ctx);
       speak = speaker(audio.duck, ctx);
       start = ctx.currentTime + 0.05;
       begin = performance.now();
