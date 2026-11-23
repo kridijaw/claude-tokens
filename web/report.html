@@ -152,7 +152,9 @@ const usd = v => "$" + v.toLocaleString("en", v >= 1000 ? { maximumFractionDigit
 const compact = v => v.toLocaleString("en", { notation: "compact", maximumFractionDigits: 1 });
 const metric = (key = state.unit) => METRICS.find(m => m.key === key);
 const unitLabel = () => state.unit === "cost" ? "API cost" : state.unit === "tokens" ? "Tokens" : metric().label;
-const fmt = (v, key = state.unit) => key === "cost" ? usd(v) : key === "tokens" ? compact(v) : quantity(v, metric(key).units);
+const mobile = matchMedia("(max-width: 860px)");
+const unitsOf = m => mobile.matches && m.mobile || m.units;
+const fmt = (v, key = state.unit) => key === "cost" ? usd(v) : key === "tokens" ? compact(v) : quantity(v, unitsOf(metric(key)));
 const axis = (v, [name, size]) => state.unit === "cost" ? "$" + (v >= 1e4 ? compact(v) : v.toLocaleString("en"))
   : state.unit === "tokens" ? compact(v) : (v / size).toLocaleString("en", { maximumSignificantDigits: 3 }) + " " + name;
 const pct = v => v >= 0.0995 ? (v * 100).toFixed(0) + "%" : v >= 0.0005 ? (v * 100).toFixed(1) + "%" : v > 0 ? "<0.1%" : "0%";
@@ -168,7 +170,7 @@ const METRICS = [
     how: [`Energy × ${F.co2_kg_per_kwh} kg per kWh`, "CO2 and other greenhouse gases emitted per kWh on the US average grid."] },
   { key: "water", label: "Water", of: kwh => kwh * F.water_l_per_kwh, units: [["mL", 0.001], ["L", 1], ["m³", 1000]],
     how: [`Energy × ${F.water_l_per_kwh} L per kWh`, "On-site cooling plus the water consumed generating the electricity."] },
-  { key: "trees", label: "Tree-years", of: kwh => co2(kwh) / F.co2_kg_per_tree_year, units: [["tree-years", 1]],
+  { key: "trees", label: "Tree-years", of: kwh => co2(kwh) / F.co2_kg_per_tree_year, units: [["tree-years", 1]], mobile: [["ty", 1]],
     how: [`CO2 ÷ ${F.co2_kg_per_tree_year} kg per tree-year`, "CO2 a mature tree absorbs in a year."] },
   { key: "gha", label: "Global hectares", of: kwh => co2(kwh) / 1000 * F.gha_per_t_co2, units: [["gm²", 0.0001], ["gha", 1]],
     how: [`CO2 × ${F.gha_per_t_co2} gha per t`, "Biologically productive land of world-average yield needed for a year to absorb the CO2."] },
@@ -268,7 +270,7 @@ function stacked(host, list, byDay, series, height, patternId) {
   const W = host.clientWidth, top = 8, bottom = 22, H = height - top - bottom, m = metric();
   const b = base(), value = a => series.reduce((s, i) => s + a[b + i], 0);
   const max = Math.max(0, ...list.map(d => byDay.has(d) ? value(byDay.get(d)) : 0));
-  const shown = m ? unitFor(max, m.units) : ["", 1], marks = ticks(max / shown[1]).map(t => t * shown[1]), labels = marks.map(t => axis(t, shown));
+  const shown = m ? unitFor(max, unitsOf(m)) : ["", 1], marks = ticks(max / shown[1]).map(t => t * shown[1]), labels = marks.map(t => axis(t, shown));
   const left = m ? Math.max(52, ...labels.map(t => t.length * 7 + 8)) : 52;
   const slot = (W - left) / list.length, bw = Math.max(1, Math.min(24, slot - Math.min(2, slot * 0.25)));
   const y = v => top + H - (marks.length > 1 ? v / marks[marks.length - 1] * H : 0);
