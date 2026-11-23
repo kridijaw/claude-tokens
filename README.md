@@ -4,7 +4,7 @@ Claude Code token usage per repo. Each run copies new usage from the transcripts
 
 Needs macOS and Python 3.11 or newer. Not affiliated with Anthropic.
 
-See an [example report](https://claude-tokens.pages.dev) with made-up data.
+See an [example report](https://claude-tokens.pages.dev) with real usage under made-up repo names.
 
 ## Install
 
