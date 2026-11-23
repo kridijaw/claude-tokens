@@ -2,6 +2,7 @@
 """Claude Code token usage per repo."""
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -349,7 +350,8 @@ def write_report(db):
     }
     encoded = json.dumps(data, separators=(",", ":")).replace("<", "\\u003c")
     page = (WEB / "report.html").read_text().replace("/*INSTALL*/", (WEB / "install.js").read_text())
-    REPORT.write_text(page.replace("/*DATA*/null", encoded))
+    voice = {clip.stem: base64.b64encode(clip.read_bytes()).decode() for clip in sorted((WEB / "voice").glob("*.mp3"))}
+    REPORT.write_text(page.replace("/*VOICE*/{}", json.dumps(voice)).replace("/*DATA*/null", encoded))
     subprocess.run(["open", REPORT], check=True)
 
 
