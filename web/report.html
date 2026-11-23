@@ -456,7 +456,7 @@ function play(wait) {
 $("play").onclick = () => play(false);
 function renderFootprint(rows) {
   const [low, mid, high] = estimates(rows), held = document.activeElement?.dataset.metric;
-  $("footprint").replaceChildren(...METRICS.map(({ key, label, units, how }) => el("div", { class: "item" }, el("button", { class: "tile", "data-metric": key, "aria-pressed": state.unit === key, onclick: () => unit(state.unit === key ? "cost" : key) },
+  $("footprint").replaceChildren(...[...METRICS.filter(m => m.key !== "trees"), metric("trees")].map(({ key, label, units, how }) => el("div", { class: "item" }, el("button", { class: "tile", "data-metric": key, "aria-pressed": state.unit === key, onclick: () => unit(state.unit === key ? "cost" : key) },
     el("div", { class: "label" }, label),
     el("div", { class: "value" }, quantity(mid[key], units)),
     el("div", { class: "note" }, `${quantity(low[key], units)} to ${quantity(high[key], units)}`)), infoButton(label, how))));
