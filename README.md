@@ -6,6 +6,13 @@ Needs macOS and Python 3.11 or newer. Not affiliated with Anthropic.
 
 See an [example report](https://claude-tokens.pages.dev) with made-up data.
 
+<a href="https://claude-tokens.pages.dev">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/311a5635-8c14-4aef-baf6-638aa4de69ed">
+    <img alt="HTML report" src="https://github.com/user-attachments/assets/0305c580-0042-4974-ad2b-053e4d5f4596">
+  </picture>
+</a>
+
 ## Install
 
 Clone the repo and link the script into a folder on your `PATH`:
@@ -52,3 +59,7 @@ Config changes also apply to past usage.
 ## Footprint
 
 The energy, CO2 and water figures in the HTML report are explained in [docs/footprint.md](docs/footprint.md).
+
+The report can also play the footprint as an animation:
+
+https://github.com/user-attachments/assets/10fc79a2-8060-4e52-9ab5-55e7519e3bbf
