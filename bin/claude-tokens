@@ -309,7 +309,7 @@ def rates_for(prices, model, day, prompt):
 def usage(db):
     """Tokens and cost per local hour, repo and model."""
     cells, unpriced, prices = {}, {}, load_prices(db)
-    # cost-state rows are manual corrections for sessions whose transcripts have truncated output counts.
+    # cost-state rows are manual corrections for truncated output counts: docs/output-corrections.md.
     query = """SELECT id LIKE 'cost-state:%', at, cwd, model, input, cache_write, cache_read, output,
       coalesce(cache_write_1h, 0), thinking FROM messages WHERE model != '<synthetic>'"""
     for correction, at, cwd, model, fresh, write, read, output, write_1h, thinking in db.execute(query):
